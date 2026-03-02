@@ -213,7 +213,7 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
         # Change labels based on options
         if run_info['uselog'] or run_info['uselogbh']:
             axes[i].set_ylabel(r'Residuals')
-            axes[i].set_xlabel(r'$log(\overline {B_H})$ Predict')
+            axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Predict')
         else:
             axes[i].set_ylabel(r'Residuals')
             axes[i].set_xlabel(r'$\overline {B_H}$ Predict')
@@ -364,8 +364,8 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
         
         # Change labels based on options
         if run_info['uselog'] or run_info['uselogbh']:
-            axes[i].set_ylabel(r'$log(\overline {B_H})$ Predict')
-            axes[i].set_xlabel(r'$log(\overline {B_H})$ Measured')
+            axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$ Predict')
+            axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Measured')
         else:
             axes[i].set_ylabel(r'$\overline {B_H}$ Predict')
             axes[i].set_xlabel(r'$\overline {B_H}$ Measured')
@@ -378,8 +378,8 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
         ymin, ymax = axes[i].get_ylim()
         amin = np.floor(min(xmin, ymin))
         amax = np.ceil(max(xmax, ymax))
-        axes[i].set_xticks(np.arange(amin,amax))
-        axes[i].set_yticks(np.arange(amin,amax))
+        # axes[i].set_xticks(np.arange(amin,amax))
+        # axes[i].set_yticks(np.arange(amin,amax))
         axes[i].set_xlim(amin, amax)
         axes[i].set_ylim(amin, amax)
         axes[i].legend()
@@ -470,7 +470,7 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
 
         # Change labels based on options
         if run_info['uselog'] or run_info['uselogbh']:
-            axes[i].set_ylabel(r'$log(\overline {B_H})$')
+            axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$')
             axes[i].set_xlabel(r'Index')
         else:
             axes[i].set_ylabel(r'$\overline {B_H}$')
@@ -544,7 +544,8 @@ def autogluon_regression( file_info, run_info, full=False ):
     predictor.fit_summary()
     
     # Save the standard scaler
-    dump( scaler, open(join( path, 'StandardScaler.pkl'), 'wb') )
+    if scaler is not None:
+        dump( scaler, open(join( path, 'StandardScaler.pkl'), 'wb') )
     
     # Save training and test data sets
     dump( train_set, open(join( path, 'train_data.pkl'), 'wb') )
@@ -604,7 +605,8 @@ def autogluon_quantile( file_info, run_info, alpha=0.05, full=False ):
     predictor.fit_summary()
     
     # Save the standard scaler
-    dump( scaler, open(join( path, 'StandardScaler.pkl'), 'wb') )
+    if scaler is not None:
+        dump( scaler, open(join( path, 'StandardScaler.pkl'), 'wb') )
     
     # Save training and test data sets
     dump( train_set, open(join( path, 'train_data.pkl'), 'wb') )

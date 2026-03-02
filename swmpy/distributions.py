@@ -23,7 +23,7 @@ def supermag_distribution( supermagdirectory, year, number, uselog=False ):
         number = number of minutes over which statistics gathered (e.g., number = 30
              examine 30 minutes windows)
         
-        uselog = whether to use log(variable) in distribution
+        uselog = whether to use log10(variable) in distribution
         
      Outputs:
         distribution plot for each station
@@ -45,7 +45,7 @@ def supermag_distribution( supermagdirectory, year, number, uselog=False ):
         data = {}
         for name in names:
             if uselog:
-                data[name] = np.log( smdf[name].values )
+                data[name] = np.log10( smdf[name].values )
             else:
                 data[name] = smdf[name].values
     
@@ -82,7 +82,7 @@ def omni_distribution( omnidirectory, year, number, distance, uselog=False ):
             solar wind data will be ballistically propagated from bow shock nose
             to this point on the GSE x axis.
 
-        uselog = whether to use log(variable) in distribution
+        uselog = whether to use log10(variable) in distribution
         
      Outputs:
         distribution plot for each station
@@ -103,7 +103,7 @@ def omni_distribution( omnidirectory, year, number, distance, uselog=False ):
     data = {}
     for name in names:
         if uselog:
-            data[name] = np.log( omnidf[name].values )
+            data[name] = np.log10( omnidf[name].values )
         else:
             data[name] = omnidf[name].values
 

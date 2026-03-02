@@ -118,7 +118,7 @@ def _remove_unused( df ):
  
 def _remove_pos_neg( df ):
     """Drops variables from dataframe that are both positive and negative,
-    we can't use them when we fit with the log(variables).  
+    we can't use them when we fit with the log10(variables).  
     
     Inputs:
         df = dataframe that includes OMNI and SuperMAG data
@@ -166,7 +166,7 @@ def _remove_zeros_add_logs( df, uselog, includedXdt ):
     Inputs:
         df = dataframe that includes OMNI and SuperMAG data
         
-        uselog = whether to use log(variables) in fit
+        uselog = whether to use log10(variables) in fit
         
         includedXdt = whether to include time derivative of variables
         
@@ -182,7 +182,7 @@ def _remove_zeros_add_logs( df, uselog, includedXdt ):
         # Drop rows with zero values so we can take log of them
         for name in names:
             df = df.drop(df[df[name] == 0].index)
-            df[name] = np.log(df[name])
+            df[name] = np.log10(df[name])
     else:
         if includedXdt:
             names = ['|B| Mean', '|B| STD', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
@@ -253,7 +253,10 @@ def _merge_files( file_info, run_info ):
     includedXdt = run_info['includedXdt']
                  
     # Get dataframes and merge them
-    filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
+    if distance is None:
+        filename = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl'
+    else:
+        filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
     omnidf = pd.read_pickle( join(omnidirectory, filename) )  
     omnidf.set_index('Datetime')
 
@@ -281,7 +284,7 @@ def _merge_files( file_info, run_info ):
         import sys
         sys.exit('Error: Either uselog True or includedXdt True, but not both.')
     
-    # If we fit to log(variables) (uselog is True),
+    # If we fit to log10(variables) (uselog is True),
     # drop variables positive and negative variables
     # and we can't take log of them
     if uselog:
@@ -295,7 +298,7 @@ def _merge_files( file_info, run_info ):
     if not includedXdt:
         df = _remove_dXdt( df )
 
-    # Drop rows with 0 values and, if uselog is true, take log(variables)
+    # Drop rows with 0 values and, if uselog is true, take log10(variables)
     df = _remove_zeros_add_logs( df, uselog, includedXdt )
     
     # if kp != None, drop rows with Kp values below kp
@@ -410,7 +413,7 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
         df = _remove_std(df)
 
     if run_info['uselogbh']:
-        tmp = np.log( df['B_H Mean'] )
+        tmp = np.log10( df['B_H Mean'] )
         df['B_H Mean'] = tmp
 
     # Determine whether the fit uses squares of some variables 
@@ -525,7 +528,7 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         df = _remove_std(df)
 
     if flag_info['uselogbh']:
-        tmp = np.log( df['B_H Mean'] )
+        tmp = np.log10( df['B_H Mean'] )
         df['B_H Mean'] = tmp
 
     # Determine whether the fit uses squares of some variables 
@@ -572,6 +575,8 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         
         train_set[names] = scaler.fit_transform(train_set[names])
         test_set[names] = scaler.transform(test_set[names])
+    else:
+        scaler = None
         
     return train_set, test_set, scaler
  

@@ -406,7 +406,8 @@ def omni_stats(info, year, number, distance):
         
         distance = dist from earth (toward sun) at which solar wind data is valid.
             solar wind data will be ballistically propagated from bow shock nose
-            to this point on the GSE x axis.
+            to this point on the GSE x axis. Use None when we want no ballistic
+            propagation.
         
      Outputs:
         pickle file with statistics
@@ -425,16 +426,17 @@ def omni_stats(info, year, number, distance):
     
     # Ballistically propagate the solar wind conditions.  That is, add delay
     # for solar wind to travel from OMNI BSN (Re) to DIST (Re) along GSE x axis
-    
-    # *6378.1 convert to km
-    omnidf['Distance'] = (omnidf['BSN location, Xgse, Re'] - distance)*6378.1 
-    # *1000 to get ms
-    omnidf['tval']     = omnidf['tval'] + \
-                        1000.*omnidf['Distance']/omnidf['Vx Velocity, km/s, GSE'] 
-    omnidf['Datetime'] = pd.to_datetime( omnidf['tval'], unit='s' )
-    omnidf = omnidf.sort_values(by=['tval'])
-    omnidf = omnidf.reset_index()
-    
+    # Only propagate if distance is not None.
+    if distance is not None:
+        # *6378.1 convert to km
+        omnidf['Distance'] = (omnidf['BSN location, Xgse, Re'] - distance)*6378.1 
+        # *1000 to get ms
+        omnidf['tval']     = omnidf['tval'] + \
+                            1000.*omnidf['Distance']/omnidf['Vx Velocity, km/s, GSE'] 
+        omnidf['Datetime'] = pd.to_datetime( omnidf['tval'], unit='s' )
+        omnidf = omnidf.sort_values(by=['tval'])
+        omnidf = omnidf.reset_index()
+        
     # Get the magnitude of vectors for stats
     omnidf['B_mag'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
                               omnidf['By, nT (GSE)'] **2 + 
@@ -746,8 +748,11 @@ def omni_stats(info, year, number, distance):
     statsdf['dn/dt Mean']   = dndt_mean 
     statsdf['dn/dt STD']    = dndt_std 
 
-    file = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + \
-        str(year) + '.pkl' 
+    if distance is None:
+        file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl' 
+    else:
+        file = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + \
+            str(year) + '.pkl' 
     statsdf.to_pickle( join(omnidirectory, file) )    
     return
 
@@ -766,7 +771,7 @@ def omni_plots(info, year, number, distance):
         
         distance = dist from earth (toward sun) at which solar wind data is valid.
             solar wind data will be ballistically propagated from bow shock nose
-            to this point on the GSE x axis.
+            to this point on the GSE x axis. Use None if no ballistic propagation.
         
      Outputs:
         png files of plotted data
@@ -790,9 +795,12 @@ def omni_plots(info, year, number, distance):
                               omnidf['Vy Velocity, km/s, GSE']**2 + 
                               omnidf['Vz Velocity, km/s, GSE'] **2 )
 
-    # path to OMNI solar wind stats pickle file        
-    file = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + \
-        str(year) + '.pkl' 
+    # path to OMNI solar wind stats pickle file 
+    if distance is None:
+        file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl' 
+    else:   
+        file = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + \
+            str(year) + '.pkl' 
     statsdf = pd.read_pickle( join(omnidirectory, file) )    
     
     # Create array showing when data is available to compare to cnt_std.
@@ -828,37 +836,47 @@ def omni_plots(info, year, number, distance):
     ax[2].set_ylabel(r'Sample Size')
     ax[2].legend()
     ax[2].set_xlabel("Date")
-    fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
+    if distance is None:
+        fig.suptitle('No ballistic propagation' + str(number) + 'min '+ str(year))
+        file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.png'
+    else:
+        fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
+        file = 'OMNI-stats-' + str(distance) + 'Re-' + \
+                    str(number) + 'min-' + str(year) + '.png'
     plt.show()
-    file = 'OMNI-stats-' + str(distance) + 'Re-' + \
-                str(number) + 'min-' + str(year) + '.png'
     fig.savefig( join(omnidirectory, file) )
     
     # Plot some of the stats for quality control
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].scatter( statsdf['Datetime'], np.log(statsdf['d|B|/dt STD']), 
-                  label=r'$log(d|B|/dt$ STD)', s=3 )
-    ax[0].scatter( statsdf['Datetime'], np.log(statsdf['d|B|/dt Mean']), 
-                  label=r'$log(d|B|/dt$ Mean)', s=3 )
+    ax[0].scatter( statsdf['Datetime'], np.log10(statsdf['d|B|/dt STD']), 
+                  label=r'$log_{10}(d|B|/dt$ STD)', s=3 )
+    ax[0].scatter( statsdf['Datetime'], np.log10(statsdf['d|B|/dt Mean']), 
+                  label=r'$log_{10}(d|B|/dt$ Mean)', s=3 )
     ax[0].legend()
-    ax[1].scatter( statsdf['Datetime'], np.log(statsdf['d|V|/dt STD']), 
-                  label=r'$log(d|V|/dt$ STD)', s=3 )
-    ax[1].scatter( statsdf['Datetime'], np.log(statsdf['d|V|/dt Mean']), 
-                  label=r'$log(d|V|/dt$ Mean)', s=3 )
+    ax[1].scatter( statsdf['Datetime'], np.log10(statsdf['d|V|/dt STD']), 
+                  label=r'$log_{10}(d|V|/dt$ STD)', s=3 )
+    ax[1].scatter( statsdf['Datetime'], np.log10(statsdf['d|V|/dt Mean']), 
+                  label=r'$log_{10}(d|V|/dt$ Mean)', s=3 )
     ax[1].legend()
-    ax[2].scatter( statsdf['Datetime'], np.log(statsdf['dn/dt STD']), 
-                  label=r'$log(dn/dt$ STD)', s=3 )
-    ax[2].scatter( statsdf['Datetime'], np.log(statsdf['dn/dt Mean']), 
-                  label=r'$log(dn/dt$ Mean)', s=3 )
+    ax[2].scatter( statsdf['Datetime'], np.log10(statsdf['dn/dt STD']), 
+                  label=r'$log_{10}(dn/dt$ STD)', s=3 )
+    ax[2].scatter( statsdf['Datetime'], np.log10(statsdf['dn/dt Mean']), 
+                  label=r'$log_{10}(dn/dt$ Mean)', s=3 )
     ax[2].legend()
-    ax[0].set_ylabel(r'$log((d|B|/dt)$ STD and Mean')
-    ax[1].set_ylabel(r'$log(d|V|/dt)$ STD and Mean')
-    ax[2].set_ylabel(r'$log(dn/dt)$ STD and Mean')
+    ax[0].set_ylabel(r'$log_{10}((d|B|/dt)$ STD and Mean')
+    ax[1].set_ylabel(r'$log_{10}(d|V|/dt)$ STD and Mean')
+    ax[2].set_ylabel(r'$log_{10}(dn/dt)$ STD and Mean')
     ax[2].set_xlabel("Date")
-    fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
+    
+    if distance is None:
+        fig.suptitle(str(number) + 'min '+ str(year))
+        file = 'OMNI-stats-dXdt-' + str(number) + 'min-' + str(year) + '.png'
+    else:
+        fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
+        file = 'OMNI-stats-dXdt-' + str(distance) + 'Re-' + \
+                    str(number) + 'min-' + str(year) + '.png'
+
     plt.show()
-    file = 'OMNI-stats-dXdt-' + str(distance) + 'Re-' + \
-                str(number) + 'min-' + str(year) + '.png'
     fig.savefig( join(omnidirectory, file) )
 
     return

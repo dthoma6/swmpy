@@ -17,8 +17,6 @@ from .SuperMAG import supermag_download, supermag_download_all, supermag_stats,\
 
 from .OMNI import omni_read, omni_stats, omni_plots
 
-from .SPUD import spud_supermag_match, spud_supermag_appres
-
 from .Kp import kp_read, kp_stats
 
 from .scatter_matrix import scatter_matrix
@@ -31,5 +29,7 @@ from .utils import stations_list, get_data_one, get_data_all, \
 from .autogluon import autogluon_permutation_plot, autogluon_qq_plot, \
     autogluon_residuals_predict_plot, autogluon_predict_measured_plot, \
     autogluon_quantile_plot, autogluon_regression, autogluon_quantile
+    
+
     
 
