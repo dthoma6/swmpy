@@ -28,7 +28,7 @@ data_dir = r'/Volumes/PhysicsHD/swmpy/'
 
 file_info = {
         "info": "file",
-        "SuperMAG UserID": "dthoma6",
+        "SuperMAG UserID": "USERNAME",
         "years": [2023,2024,2025,],
         "distances": [None,], #[None, 10, 8, 6, 4, 2, 0],
         "numbers": [5,], #[5, 10, 15, 20, 25,], #[15, 20, 25, 30,],
