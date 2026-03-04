@@ -64,7 +64,7 @@ def _get_title( kind, prefix, run_info, full ):
     """Creates a title with information on run flags and parameters
     
     Inputs:
-        kind = string describing type of data, e.g., Mean or Quantile
+        kind = string describing type of plot, e.g., Mean or Quantile
         
         prefix = information returned from get_prefix on run flags
         
@@ -78,16 +78,14 @@ def _get_title( kind, prefix, run_info, full ):
         title = title for use in plots, etc.
     """
     if full:
-        title = prefix + kind + ' ' +\
-                 str(run_info['Kp']) + 'Kp-' + \
-                 str(run_info['distance']) + 'Re-' + \
+        title = prefix + kind + ' ' + \
+                 str(run_info['distance']) + 'Re ' + \
                  str(run_info['number']) + 'min' 
     else:
         title = prefix + kind + ' ' + \
                  run_info['station'] + ' ' + \
-                 str(run_info['Kp']) + 'Kp-' + \
-                 str(run_info['distance']) + 'Re-' + \
-                 str(run_info['number']) + 'min-' + \
+                 str(run_info['distance']) + 'Re ' + \
+                 str(run_info['number']) + 'min ' + \
                  str(run_info['year']) 
 
     return title
@@ -116,8 +114,8 @@ def autogluon_permutation_plot( file_info, run_info, quantile=False, full=False 
     # Directory where we will retrieve data and store plots
     path = _dir_path( file_info, run_info, quantile=quantile, full=full )
     
-    # Retrieve test data
-    test_set  = load( open(join( path, 'test_data.pkl'), 'rb') )
+    # Load test data
+    test_set = load( open(join( path, 'test_data.pkl'), 'rb') )
  
     # Load autogluon model
     predictor = TabularPredictor.load(path)
@@ -152,7 +150,7 @@ def autogluon_permutation_plot( file_info, run_info, quantile=False, full=False 
     # Prefix added to beginning of titles and filenames
     prefix = get_prefix( run_info )
 
-    fig.suptitle( _get_title( 'Mean', prefix, run_info, full ) )
+    fig.suptitle( _get_title( 'Features ', prefix, run_info, full ) )
     fig.tight_layout() 
     
     plt.savefig( join( path, 'Features ' + prefix.strip() + '.png') )
@@ -175,15 +173,21 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
             fit or just single year and station
             
     Outputs:
-        qq plot for each autogluon model
+        residuals vs prediction plot for each autogluon model
     """
    
     # Directory where we will retrieve data and store plots
     path = _dir_path( file_info, run_info, full=full )
 
-    # Retrieve test data
-    test_set  = load( open(join( path, 'test_data.pkl'), 'rb') )
+    # Load test data
+    test_set = load( open(join( path, 'test_data.pkl'), 'rb') )
  
+    # Select dependent variable
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+    else:
+        dependent = 'dB_H/dt Mean'
+
     # Load autogluon model
     predictor = TabularPredictor.load(path)
     
@@ -197,13 +201,13 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
     fig, ax = plt.subplots(s1,s2,figsize=(3*s2,3*s1+1) ) 
     axes = ax.reshape(-1)
     
-    # Use test data to create qq plot  
+    # Use test data to create residuals plot  
     data = TabularDataset(test_set)
-    y_data = test_set['B_H Mean']
+    y_data = test_set[dependent]
         
     for i, model in enumerate( models ):
         print( 'Residuals vs Predict plot: ', model )
-        y_pred = predictor.predict(data.drop(columns=['B_H Mean']), model=model)
+        y_pred = predictor.predict(data.drop(columns=[dependent]), model=model)
         residuals = y_pred - y_data
      
         axes[i].scatter(y_pred, residuals, s=3)
@@ -211,12 +215,19 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
         axes[i].set_xlabel("Predicted")
         
         # Change labels based on options
-        if run_info['uselog'] or run_info['uselogbh']:
+        if run_info['uselog'] or run_info['uselogy']:
             axes[i].set_ylabel(r'Residuals')
-            axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Predict')
+            if run_info['usebh']:
+                axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Predict')
+            else:
+                axes[i].set_xlabel(r'$log_{10}(\overline {dB_{H}/dt})$ Predict')
         else:
             axes[i].set_ylabel(r'Residuals')
-            axes[i].set_xlabel(r'$\overline {B_H}$ Predict')
+            if run_info['usebh']:
+                axes[i].set_xlabel(r'$\overline {B_H}$ Predict')
+            else:
+                axes[i].set_xlabel(r'$\overline {dB_{H}/dt}$ Predict')
+            
 
         axes[i].set_title( model )
 
@@ -228,7 +239,7 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
     # Prefix added to beginning of titles and filenames
     prefix = get_prefix( run_info )
 
-    fig.suptitle( _get_title( r'$B_H$ Mean', prefix, run_info, full ) )        
+    fig.suptitle( _get_title( 'Residuals Plot ', prefix, run_info, full ) )            
     fig.tight_layout() 
     
     plt.savefig( join( path, 'Residuals Plot ' + prefix.strip() + '.png') )
@@ -257,9 +268,15 @@ def autogluon_qq_plot( file_info, run_info, full=False):
     # Directory where we will retrieve data and store plots
     path = _dir_path( file_info, run_info, full=full )
     
-    # Retrieve test data
-    test_set  = load( open(join( path, 'test_data.pkl'), 'rb') )
+    # Load test data
+    test_set = load( open(join( path, 'test_data.pkl'), 'rb') )
  
+    # Select dependent variable
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+    else:
+        dependent = 'dB_H/dt Mean'
+
     # Load autogluon model
     predictor = TabularPredictor.load(path)
     
@@ -275,11 +292,11 @@ def autogluon_qq_plot( file_info, run_info, full=False):
     
     # Use test data to create qq plot  
     data = TabularDataset(test_set)
-    y_data = test_set['B_H Mean']
+    y_data = test_set[dependent]
         
     for i, model in enumerate( models ):
         print( 'QQ plot: ', model )
-        y_pred = predictor.predict(data.drop(columns=['B_H Mean']), model=model)
+        y_pred = predictor.predict(data.drop(columns=[dependent]), model=model)
         residuals = y_pred - y_data
      
         sm.qqplot(residuals, line='s', ax=axes[i])
@@ -293,8 +310,7 @@ def autogluon_qq_plot( file_info, run_info, full=False):
     # Prefix added to beginning of titles and filenames
     prefix = get_prefix( run_info )
 
-    fig.suptitle( _get_title( r'$B_H$ Mean ', prefix, run_info, full ) )
-        
+    fig.suptitle( _get_title( 'QQ Plot ', prefix, run_info, full ) )        
     fig.tight_layout() 
     
     plt.savefig( join( path, 'QQ Plot ' + prefix.strip() + '.png') )
@@ -322,10 +338,16 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
     # Directory where we will retrieve data and store plots
     path = _dir_path( file_info, run_info, full=full )
     
-    # Retrieve train and test data
+    # Load train and test data
     train_set = load( open(join( path, 'train_data.pkl'), 'rb') )
     test_set  = load( open(join( path, 'test_data.pkl'), 'rb') )
  
+    # Select dependent variable
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+    else:
+        dependent = 'dB_H/dt Mean'
+
     # Load autogluon model
     predictor = TabularPredictor.load(path)
     
@@ -339,17 +361,17 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
     fig, ax = plt.subplots(s1,s2,figsize=(3*s2,3*s1+1) ) 
     axes = ax.reshape(-1)
     
-    # Use test data to generate predicted vs measured plot  
+    # Prep train and test data 
     train_data = TabularDataset(train_set)
     test_data  = TabularDataset(test_set)
-    y_train    = train_set['B_H Mean']
-    y_test     = test_set['B_H Mean']
+    y_train    = train_set[dependent]
+    y_test     = test_set[dependent]
     
     for i, model in enumerate( models ):
         print( 'Predict vs Measured plot: ', model )
-        y_fit  = predictor.predict(train_data.drop(columns=['B_H Mean']), 
+        y_fit  = predictor.predict(train_data.drop(columns=[dependent]), 
                                    model=model)
-        y_pred = predictor.predict(test_data.drop(columns=['B_H Mean']), 
+        y_pred = predictor.predict(test_data.drop(columns=[dependent]), 
                                    model=model)
         
         # r2 based on training data
@@ -363,12 +385,20 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
         axes[i].scatter(y_test, y_pred, s=3, label='Test')
         
         # Change labels based on options
-        if run_info['uselog'] or run_info['uselogbh']:
-            axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$ Predict')
-            axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Measured')
+        if run_info['uselog'] or run_info['uselogy']:
+            if run_info['usebh']:
+                axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$ Predict')
+                axes[i].set_xlabel(r'$log_{10}(\overline {B_H})$ Measured')
+            else:
+                axes[i].set_ylabel(r'$log_{10}(\overline {dB_{H}/dt})$ Predict')
+                axes[i].set_xlabel(r'$log_{10}(\overline {dB_{H}/dt})$ Measured')
         else:
-            axes[i].set_ylabel(r'$\overline {B_H}$ Predict')
-            axes[i].set_xlabel(r'$\overline {B_H}$ Measured')
+            if run_info['usebh']:
+                axes[i].set_ylabel(r'$\overline {B_H}$ Predict')
+                axes[i].set_xlabel(r'$\overline {B_H}$ Measured')
+            else:
+                axes[i].set_ylabel(r'$\overline {dB_{H}/dt}$ Predict')
+                axes[i].set_xlabel(r'$\overline {dB_{H}/dt}$ Measured')
             
         axes[i].set_title( model + r' $r^2$: ' + str(round(r2, 2)) + r' $pe$: ' + 
                           str(round(pe, 2)) + r' $RMSE$: ' + str(round(rmse, 2)))
@@ -392,7 +422,7 @@ def autogluon_predict_measured_plot( file_info, run_info, full=False ):
     # Prefix added to beginning of titles and filenames
     prefix = get_prefix( run_info )
 
-    fig.suptitle( _get_title( 'Mean', prefix, run_info, full ) )
+    fig.suptitle( _get_title( 'Fit vs Measured ', prefix, run_info, full ) )
     fig.tight_layout() 
     
     plt.savefig( join( path, 'Fit vs Measured ' + prefix.strip() + '.png') )
@@ -428,12 +458,18 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
     # Directory where we will retrieve data and store plots
     path = _dir_path( file_info, run_info, quantile=True, full=full )
     
-    # Retrieve test data
-    test_set  = load( open(join( path, 'test_data.pkl'), 'rb') )
+    # Load test data
+    test_set = load( open(join( path, 'test_data.pkl'), 'rb') )
  
      # For the plot below, we sort the test_set from smallest to largest
     test_set = test_set.sort_values(by=["B_H Mean"])
     test_set = test_set.reset_index(drop=True)
+
+    # Select dependent variable
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+    else:
+        dependent = 'dB_H/dt Mean'
 
     # Load autogluon model
     predictor = TabularPredictor.load(path)
@@ -450,14 +486,14 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
     
     # Use test data in autogluon model  
     test_data  = TabularDataset(test_set)
-    y_test     = test_set['B_H Mean']
+    y_test     = test_set[dependent]
     
     # Size of prediction interval
     pct = 100*(1-2*alpha)
     
     for i, model in enumerate( models ):
         print( 'Quantile plot: ', model )
-        y_pred = predictor.predict(test_data.drop(columns=['B_H Mean']), 
+        y_pred = predictor.predict(test_data.drop(columns=[dependent]), 
                                    model=model)
         
         # Plot data
@@ -469,11 +505,17 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
             axes[i].set_xlim(zoom)
 
         # Change labels based on options
-        if run_info['uselog'] or run_info['uselogbh']:
-            axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$')
+        if run_info['uselog'] or run_info['uselogy']:
+            if run_info['usebh']:
+                axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$ Predict')
+            else:
+                axes[i].set_ylabel(r'$log_{10}(\overline {dB_{H}/dt})$ Predict')
             axes[i].set_xlabel(r'Index')
         else:
-            axes[i].set_ylabel(r'$\overline {B_H}$')
+            if run_info['usebh']:
+                axes[i].set_ylabel(r'$\overline {B_H}$ Predict')
+            else:
+                axes[i].set_ylabel(r'$\overline {dB_{H}/dt}$ Predict')
             axes[i].set_xlabel(r'Index')
             
         axes[i].set_title( model )
@@ -489,7 +531,7 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
     # Prefix added to beginning of titles and filenames
     prefix = get_prefix( run_info )
 
-    fig.suptitle( _get_title( 'Quantile', prefix, run_info, full ) )
+    fig.suptitle( _get_title( 'Quantile ', prefix, run_info, full ) )
     fig.tight_layout() 
     
     plt.savefig( join( path, 'Quantile ' + prefix.strip() + '.png') )
@@ -523,15 +565,25 @@ def autogluon_regression( file_info, run_info, full=False ):
     # Return if train_set and test_set are None.  This happens
     # when the SuperMAG data set is small
     if train_set is None and test_set is None: return
+
+    # Select dependent variable
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+        train_set = train_set.drop(['dB_H/dt Mean'], axis=1)
+        test_set  = test_set.drop(['dB_H/dt Mean'], axis=1)
+    else:
+        dependent = 'dB_H/dt Mean'
+        train_set = train_set.drop(['B_H Mean'], axis=1)
+        test_set  = test_set.drop(['B_H Mean'], axis=1)
         
     # Directory where we will store plots, model data, etc.
     path = _dir_path( file_info, run_info, full=full )
- 
+
     # Train autogluon model
     problem_type = 'regression'
     eval_metric = 'root_mean_squared_error'
     train_data = TabularDataset(train_set)
-    predictor = TabularPredictor(label='B_H Mean',
+    predictor = TabularPredictor(label=dependent,
                                  problem_type=problem_type,
                                  eval_metric=eval_metric,
                                  path=path).fit(train_data) 
@@ -585,6 +637,16 @@ def autogluon_quantile( file_info, run_info, alpha=0.05, full=False ):
     # when the SuperMAG data set is small
     if train_set is None and test_set is None: return
         
+    # Select dependent variable, and drop the one we're not using
+    if run_info['usebh']:
+        dependent = 'B_H Mean'
+        train_set = train_set.drop(['dB_H/dt Mean'], axis=1)
+        test_set  = test_set.drop(['dB_H/dt Mean'], axis=1)
+    else:
+        dependent = 'dB_H/dt Mean'
+        train_set = train_set.drop(['B_H Mean'], axis=1)
+        test_set  = test_set.drop(['B_H Mean'], axis=1)
+        
     # Directory where we will store plots, model data, etc.
     path = _dir_path( file_info, run_info, quantile=True, full=full )
  
@@ -592,7 +654,7 @@ def autogluon_quantile( file_info, run_info, alpha=0.05, full=False ):
     problem_type = 'quantile'
     quantile_levels=[alpha, 0.5,1.0-alpha]
     train_data = TabularDataset(train_set)
-    predictor = TabularPredictor(label='B_H Mean',
+    predictor = TabularPredictor(label=dependent,
                                  problem_type=problem_type,
                                  quantile_levels = quantile_levels,
                                  path=path).fit(train_data) 

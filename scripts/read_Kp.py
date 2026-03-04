@@ -12,7 +12,7 @@ from file_info import file_info
 if __name__ == "__main__":
         
     # whether to parse Kp data
-    PARSE = True
+    PARSE = False
 
     # whether to generate Kp stats
     STATS = True
@@ -29,7 +29,6 @@ if __name__ == "__main__":
     # number of minutes over which statistics gathered (e.g., statistics 
     # for number = 30 are calculated over consecutive 30 minute windows)    
     nums = file_info['numbers']
-    nums=[30,60,]
 
     ############## parse Kp files
 

@@ -10,27 +10,30 @@ from file_info import file_info, data_dir
 
 if __name__ == "__main__":
     
+    # Whether to fit B_H (True) or dB_H/dt (False) as dependent variable
+    USEBH = True
+    
     # Use logs of variables for fit
+    # USELOG True, log of all independent and dependent variables
+    # USELOGY True, log of dependent variable only
     USELOG = False
-    USELOGBH = False 
-    if USELOG and USELOGBH: 
+    USELOGY = False 
+    if USELOG and USELOGY: 
         import sys
-        sys.exit('Error: Either USELOG True or USELOGBH True, but not both.')
+        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
     
     # Include dB/dt, dV/dt, dn/dt in fit
+    # Since dX/dt variables are positive and negative, can't use with USELOG
     INCLUDEDXDT = False
     if USELOG and INCLUDEDXDT: 
         import sys
         sys.exit('Error: Either USELOG True or INCLUDEDXDT True, but not both.')
    
-    # Include STD (std deviation) variables in fit
-    INCLUDESTD = False
-    
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
     KP = None
     
-    # |B| threshold, we keep on data with "|B| mean" above the threshold
+    # |B| threshold, we keep on data with "|B| mean" (OMNI) above the threshold
     # defined by number of std deviations.  Drop data with less than
     # mean + num. of std deviations. Use None, if we want to keep all data
     #
@@ -43,7 +46,7 @@ if __name__ == "__main__":
     # '|V| Mean' to list.  Otherwise, set to None
     ADDSQUARES = None
 
-    # Should data be standardized, data ==> data = (data-mean)/(std dev)
+    # Whether data is standardized, data ==> data = (data-mean)/(std dev)
     STANDARDIZE = True
 
     # Whether to generate regression fit or quantile fit
@@ -66,11 +69,11 @@ if __name__ == "__main__":
         
         run_info = {
             "info": "single",  # one year, one station
+            "usebh": USEBH,
             "uselog": USELOG,
-            "uselogbh": USELOGBH,
+            "uselogy": USELOGY,
             "standardize": STANDARDIZE,
             "includedXdt": INCLUDEDXDT,
-            "includestd": INCLUDESTD,
             "station": station,
             "year": year,
             "number": number,

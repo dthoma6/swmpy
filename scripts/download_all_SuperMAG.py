@@ -22,13 +22,13 @@ if __name__ == "__main__":
     STATS = True
     
     # Whether to plot SuperMAG statistics
-    PLOTSTATS = True
+    PLOTSTATS = False
     
     # Whether to plot Bn, Be, Bd
     PLOTB = False    
     
     # Whether to plot world maps of SuperMAG sites
-    PLOTWORLD = True
+    PLOTWORLD = False
 
     ############## download SuperMAG
     

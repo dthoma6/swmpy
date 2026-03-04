@@ -10,33 +10,35 @@ from file_info_all_SuperMAG import file_info
 
 if __name__ == "__main__":
     
+    # Whether to fit B_H (True) or dB_H/dt (False) as dependent variable
+    USEBH = True
+    
     # Use logs of variables for fit
+    # USELOG True, log of all independent and dependent variables
+    # USELOGY True, log of dependent variable only
     USELOG = False
-    USELOGBH = True 
-    if USELOG and USELOGBH: 
+    USELOGY = False 
+    if USELOG and USELOGY: 
         import sys
-        sys.exit('Error: Either USELOG True or USELOGBH True, but not both.')
+        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
     
     # Include dB/dt, dV/dt, dn/dt in fit
+    # Since dX/dt variables are positive and negative, can't use with USELOG
     INCLUDEDXDT = False
     if USELOG and INCLUDEDXDT: 
         import sys
         sys.exit('Error: Either USELOG True or INCLUDEDXDT True, but not both.')
     
-    # Include STD (std deviation) variables in fit
-    INCLUDESTD = False
-    
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
-    KP = None
+    KP = 7.0
     
-    # |B| threshold, we keep on data with "|B| mean" above the threshold
+    # |B| threshold, we keep on data with "|B| mean" (OMNI) above the threshold
     # defined by number of std deviations.  Drop data with less than
     # mean + num. of std deviations. Use None, if we want to keep all data
     #
-    # Didn't work as well as Kp cut-off
-    #
-    BTHRESHOLD = None  
+    # Doesn't work as well as the Kp threshold
+    BTHRESHOLD = None 
     
     if KP is not None and BTHRESHOLD is not None: 
         import sys
@@ -51,8 +53,8 @@ if __name__ == "__main__":
     # features were near 0 in importance
     ADDSQUARES = None 
 
-    # Should data be standardized, data ==> data = (data-mean)/(std dev)
-    STANDARDIZE = True
+    # Whether data is standardized, data ==> data = (data-mean)/(std dev)
+    STANDARDIZE = False
         
     # Whether to generate fits
     FITS = True
@@ -71,11 +73,11 @@ if __name__ == "__main__":
         
         run_info = {
             "info": 'all',  # all years, all stations
+            "usebh": USEBH,
             "uselog": USELOG,
-            "uselogbh": USELOGBH,
+            "uselogy": USELOGY,
             "standardize": STANDARDIZE,
             "includedXdt": INCLUDEDXDT,
-            "includestd": INCLUDESTD,
             "number": number,
             "distance": distance,
             "Kp": KP,

@@ -9,6 +9,7 @@ Created on Tue Jan 27 17:05:32 2026
 from os.path import join
 import pandas as pd
 import numpy as np
+from numba import njit
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -27,9 +28,7 @@ def _remove_correlated_omni( df ):
     # Same as By, Bz in GSE, just different coordinate system.  We dropped 
     # these before calculating correlation coefficents
     df = df.drop(['By, nT (GSM) Mean'], axis=1)
-    df = df.drop(['By, nT (GSM) STD'], axis=1)
     df = df.drop(['Bz, nT (GSM) Mean'], axis=1)
-    df = df.drop(['Bz, nT (GSM) STD'], axis=1)
     
     # Drop derived variables, which are based on measured data
     # These have high correlation to measured data
@@ -39,54 +38,29 @@ def _remove_correlated_omni( df ):
     
     # Flow pressure 
     df = df.drop(['Flow pressure, nPa Mean'], axis=1)
-    df = df.drop(['Flow pressure, nPa STD'], axis=1)
 
     # Electric field 
     df = df.drop(['Electric field, mV/m Mean'], axis=1)
-    df = df.drop(['Electric field, mV/m STD'], axis=1)
 
     # Plasma beta
     df = df.drop(['Plasma beta Mean'], axis=1)
-    df = df.drop(['Plasma beta STD'], axis=1)
 
     # Alfven mach 
     df = df.drop(['Alfven mach number Mean'], axis=1)
-    df = df.drop(['Alfven mach number STD'], axis=1)
 
     # Magnetosonic mach
     df = df.drop(['Magnetosonic mach number Mean'], axis=1)
-    df = df.drop(['Magnetosonic mach number STD'], axis=1)
 
     # Drop other variables that are highly correlated, see scatter_matrix.py
 
     # Vx correlated with |V|
     df = df.drop(['Vx Velocity, km/s, GSE Mean'], axis=1)
-    df = df.drop(['Vx Velocity, km/s, GSE STD'], axis=1)
    
     # Bx and By correlated
     df = df.drop(['By, nT (GSE) Mean'], axis=1)
-    df = df.drop(['By, nT (GSE) STD'], axis=1)
 
     # Temperature correlated with |V| and Vx
     df = df.drop(['Temperature, K Mean'], axis=1)
-    df = df.drop(['Temperature, K STD'], axis=1)
-    
-    return df
-
-def _remove_correlated_supermag( df ):
-    """Drop dataframe columns that contain highly-correlated 
-    SuperMAG variables. |B| Mean and STD are correlated with B_H
-
-    Inputs:
-        df = dataframe that includes OMNI and SuperMAG 
-        
-    Outputs:
-        df = dataframe without correlated SuperMAG variables
-    """
-
-    # |B| Mean and STD are correlated with B_H
-    df = df.drop(['B_mag Mean'], axis=1)
-    df = df.drop(['B_mag STD'], axis=1)
     
     return df
 
@@ -128,14 +102,13 @@ def _remove_pos_neg( df ):
     """
     
     # Drop these variables  
-    df = df.drop(['Bx, nT (GSE, GSM) STD'], axis=1)
-    df = df.drop(['Bz, nT (GSE) STD'], axis=1)
     df = df.drop(['Bx, nT (GSE, GSM) Mean'], axis=1)
     df = df.drop(['Bz, nT (GSE) Mean'], axis=1)
-    df = df.drop(['Vy Velocity, km/s, GSE STD'], axis=1)
-    df = df.drop(['Vz Velocity, km/s, GSE STD'], axis=1)
     df = df.drop(['Vy Velocity, km/s, GSE Mean'], axis=1)
     df = df.drop(['Vz Velocity, km/s, GSE Mean'], axis=1)
+
+    # 'dB_H/dt Mean' is pos/neg, but we want to keep. So take absolute value
+    df['dB_H/dt Mean'] = np.abs(df['dB_H/dt Mean'])
 
     return df
  
@@ -151,11 +124,8 @@ def _remove_dXdt( df ):
     
     # Drop these variables  
     df = df.drop(['d|B|/dt Mean'], axis=1)
-    df = df.drop(['d|B|/dt STD'], axis=1)
     df = df.drop(['d|V|/dt Mean'], axis=1)
-    df = df.drop(['d|V|/dt STD'], axis=1)
     df = df.drop(['dn/dt Mean'], axis=1)
-    df = df.drop(['dn/dt STD'], axis=1)
 
     return df
  
@@ -175,9 +145,8 @@ def _remove_zeros_add_logs( df, uselog, includedXdt ):
     """
     
     if uselog:
-        names = ['|B| Mean', '|B| STD', '|V| Mean', '|V| STD',
-                'Proton Density, n/cc Mean', 'Proton Density, n/cc STD',
-                'B_H Mean', 'B_H STD']
+        names = ['|B| Mean', '|V| Mean', 'Proton Density, n/cc Mean', 
+                 'B_H Mean', 'dB_H/dt Mean']
         
         # Drop rows with zero values so we can take log of them
         for name in names:
@@ -185,20 +154,14 @@ def _remove_zeros_add_logs( df, uselog, includedXdt ):
             df[name] = np.log10(df[name])
     else:
         if includedXdt:
-            names = ['|B| Mean', '|B| STD', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
-                    'Bx, nT (GSE, GSM) STD', 'Bz, nT (GSE) STD', '|V| Mean', '|V| STD',
-                    'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
-                    'Vy Velocity, km/s, GSE STD', 'Vz Velocity, km/s, GSE STD',
-                    'Proton Density, n/cc Mean', 'Proton Density, n/cc STD',
-                    'd|B|/dt Mean', 'd|B|/dt STD', 'd|V|/dt Mean', 'd|V|/dt STD', 
-                    'dn/dt Mean', 'dn/dt STD', 'B_H Mean', 'B_H STD']
+            names = ['|B| Mean', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
+                    '|V| Mean',  'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
+                    'Proton Density, n/cc Mean', 'd|B|/dt Mean', 'd|V|/dt Mean', 
+                    'dn/dt Mean', 'B_H Mean', 'dB_H/dt Mean']
         else:
-            names = ['|B| Mean', '|B| STD', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
-                    'Bx, nT (GSE, GSM) STD', 'Bz, nT (GSE) STD', '|V| Mean', '|V| STD',
-                    'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
-                    'Vy Velocity, km/s, GSE STD', 'Vz Velocity, km/s, GSE STD',
-                    'Proton Density, n/cc Mean', 'Proton Density, n/cc STD',
-                    'B_H Mean', 'B_H STD']
+            names = ['|B| Mean', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
+                    '|V| Mean',  'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
+                    'Proton Density, n/cc Mean', 'B_H Mean', 'dB_H/dt Mean']
 
         # Drop rows with zero values (I believe they're bad data, and 
         # we have a small number of them)
@@ -250,6 +213,7 @@ def _merge_files( file_info, run_info ):
     kp       = run_info['Kp']
     
     uselog      = run_info['uselog']
+    uselogy     = run_info['uselogy']
     includedXdt = run_info['includedXdt']
                  
     # Get dataframes and merge them
@@ -274,9 +238,6 @@ def _merge_files( file_info, run_info ):
     # Drop highly-correlated OMNI variables
     df = _remove_correlated_omni(df)
     
-    # Drop highly-correlated SuperMAG variables
-    df = _remove_correlated_supermag(df)
-        
     # Special test for uselog and includedXdt
     # Can't have both true because dXdt variables are positive and negative
     # so we can't take logs of them.
@@ -284,16 +245,19 @@ def _merge_files( file_info, run_info ):
         import sys
         sys.exit('Error: Either uselog True or includedXdt True, but not both.')
     
-    # If we fit to log10(variables) (uselog is True),
-    # drop variables positive and negative variables
-    # and we can't take log of them
+    # If we fit to log10(variables) (uselog is True), drop variables that are 
+    # positive and negative variables and we can't take log of them.  
+    #
+    # The one exception is dB_H/dt, we take the absolute value
     if uselog:
-        df = _remove_pos_neg( df )
+        df = _remove_pos_neg( df ) 
+    if uselogy:
+        df['dB_H/dt Mean'] = np.abs(df['dB_H/dt Mean'])
    
-    # if includedXdt is false or uselog is True drop these variables
+    # if includedXdt is False or uselog is True drop these variables
     # We're either not using them (includedXdt False) or they are positive and 
     # negative and we can't take the log of them (uselog is True)
-    # Note, don't need check on uselog here, since uselog can only be true
+    # Note, don't need check  uselog here, since uselog can only be true
     # if includedXdt is false.
     if not includedXdt:
         df = _remove_dXdt( df )
@@ -311,54 +275,14 @@ def _merge_files( file_info, run_info ):
     df['sinmlt'] = np.sin( df.mlt*np.pi/180. )
     
     # Add circular response for mcolat if we use get_data_all. 
-    # aka run_info["info"] == 'all'. Not done earlier in case uselog is true.  
-    if run_info["info"] == 'all':
+    # aka run_info['info'] == 'all'. Not done earlier in case uselog is true.  
+    if run_info['info'] == 'all':
         df['cosmcolat'] = np.cos( df.mcolat*np.pi/180. )
         df['sinmcolat'] = np.sin( df.mcolat*np.pi/180. )
     
     # Drop variables that we won't use them in fit     
     df = _remove_unused( df )
     
-    return df
-
-def _remove_std( df ):
-    """Removes STD variables from a dataframe.  The input dataframe contains a 
-    collection of variables including the Mean value and Std Dev of the variables.  
-    The STD for a given variable in in 'variable STD' column and the Mean is 
-    in the 'variable Mean' column. 
-    
-    Inputs:
-        df = contains the Means and STDs (std dev)
-        
-    Outputs:
-        dataframe without the STD columns
-    """
-    
-    columns = df.columns
-    for col in columns:
-        if 'STD' in col:
-            df = df.drop([col], axis=1)
-
-    return df
-    
-def _remove_mean( df ):
-    """Removes Mean variables from a dataframe.  The input dataframe contains 
-    a collection of variables including the Mean value and Std Dev of the 
-    variables.  The STD for a given variable in in 'variable STD' column and
-    the Mean is in the 'variable Mean' column. 
-    
-    Inputs:
-        df = contains the Means and STDs (std dev)
-        
-    Outputs:
-        dataframe without the Mean columns
-    """
-    
-    columns = df.columns
-    for col in columns:
-        if 'Mean' in col:
-            df = df.drop([col], axis=1)
-
     return df
 
 def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
@@ -388,16 +312,16 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
-    if run_info['uselog'] and run_info['uselogbh']: 
+    if run_info['uselog'] and run_info['uselogy']: 
         import sys
-        sys.exit('Error: Either USELOG True or USELOGBH True, but not both.')
+        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
 
     # Merge the SuperMAG and OMNI files into a single dataframe
     df = _merge_files( file_info, run_info ) 
     
     # # Skip files with less than 50% of measurements per year
     # # 0.5 * 365 days * 24 hours * 60 min = 262800 obsservations
-    # # we combine "number" observations to get mean and std dev.
+    # # we combine "number" observations to get mean.
     # if len(df) < 262800/run_info['number']:
     #     return None, None
     
@@ -405,16 +329,9 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
     if len(df) < 50:
         return None, None
                    
-    # Determine whether we fit on Mean only or Mean and STD variables
-    # Regardless, the response variable is B_H Mean, so we drop B_H STD
-    if run_info['includestd']:
-        df = df.drop(['B_H STD'], axis=1)
-    else:
-        df = _remove_std(df)
-
-    if run_info['uselogbh']:
-        tmp = np.log10( df['B_H Mean'] )
-        df['B_H Mean'] = tmp
+    if run_info['uselogy']:
+        df['B_H Mean']     = np.log10( df['B_H Mean'] )
+        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
 
     # Determine whether the fit uses squares of some variables 
     if run_info['addsquares'] is not None:
@@ -474,9 +391,9 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
-    if flag_info['uselog'] and flag_info['uselogbh']: 
+    if flag_info['uselog'] and flag_info['uselogy']: 
         import sys
-        sys.exit('Error: Either USELOG True or USELOGBH True, but not both.')
+        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
 
     if flag_info['Kp'] is not None and flag_info['|B| threshold'] is not None: 
         import sys
@@ -520,16 +437,9 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         import sys
         sys.exit('Error: No data found in get_data_all.')
 
-    # Determine whether we fit on Mean only or Mean and STD variables
-    # Regardless, the response variable is B_H Mean, so we drop B_H STD
-    if flag_info['includestd']:
-        df = df.drop(['B_H STD'], axis=1)
-    else:
-        df = _remove_std(df)
-
-    if flag_info['uselogbh']:
-        tmp = np.log10( df['B_H Mean'] )
-        df['B_H Mean'] = tmp
+    if flag_info['uselogy']:
+        df['B_H Mean']     = np.log10( df['B_H Mean'] )
+        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
 
     # Determine whether the fit uses squares of some variables 
     if flag_info['addsquares'] is not None:
@@ -541,10 +451,10 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
     # e.g., Drop everything below num. std deviations above the mean.
     # We use this to isolate rows with strong storm conditions
     if flag_info['|B| threshold'] is not None:
-        mean = df['B_H Mean'].mean()
-        std  = df['B_H Mean'].std()
+        mean = df['|B| Mean'].mean()
+        std  = df['|B| Mean'].std()
         num  = flag_info['|B| threshold']
-        df = df.drop(df[df['B_H Mean'] < (mean + std*num)].index)
+        df = df.drop(df[df['|B| Mean'] < (mean + std*num)].index)
         
     # Split data into training and testing sets.  With random_state set to an
     # integer, its repeatable.
@@ -623,9 +533,17 @@ def get_prefix(run_info):
     
     if run_info['standardize']: prefix = prefix + 'Standardized '
     if run_info['includedXdt']: prefix = prefix + 'dXdt '
-    if run_info['includestd']:  prefix = prefix + 'STD '
-    if run_info['uselog']:      prefix = prefix + 'Log '
-    if run_info['uselogbh']:    prefix = prefix + 'LogBH '    
+    if run_info['uselog']:      prefix = prefix + 'Log All '
+    if run_info['uselogy']:    
+        if run_info['usebh']: 
+            prefix = prefix + 'LogBH ' 
+        else:
+            prefix = prefix + 'LogdBHdt '
+    else:
+        if run_info['usebh']: 
+            prefix = prefix + 'BH ' 
+        else:
+            prefix = prefix + 'dBHdt '
     if run_info['addsquares'] is not None:    prefix = prefix + 'AddSqs '
     if run_info['Kp'] is not None:            
         prefix = prefix + 'Kp' + str(run_info['Kp']) + ' '   
@@ -652,9 +570,18 @@ def get_suffix( run_info, base='Autogluon' ):
     suffix = base
     if run_info['standardize']: suffix = suffix + '_Standardize'
     if run_info['includedXdt']: suffix = suffix + '_dXdt '
-    if run_info['includestd']:  suffix = suffix + '_STD'
-    if run_info['uselog']:      suffix = suffix + '_Log'
-    if run_info['uselogbh']:    suffix = suffix + '_LogBH'
+    if run_info['uselog']:      suffix = suffix + '_LogAll'
+    if run_info['uselogy']:    
+        if run_info['usebh']: 
+            suffix = suffix + '_LogBH'
+        else:
+            suffix = suffix + '_LogdBHdt'
+    else:
+        if run_info['usebh']: 
+            suffix = suffix + '_BH'
+        else:
+            suffix = suffix + '_dBHdt'
+
     if run_info['addsquares'] is not None:    suffix = suffix + '_AddSqs'
     if run_info['Kp'] is not None:            
         suffix = suffix + '_Kp' + str(run_info['Kp'])  
@@ -723,6 +650,60 @@ def nse(test, predict):
     eff = 1 - (np.sum((test - predict) ** 2) / np.sum((test - np.mean(test)) ** 2))
 
     return eff
+
+@njit
+def calc_dXdt(X, t):
+    """ Subroutine that allows numba accelleration. It calculates time derivative 
+    of X (e.g. data from SuperMAG or OMNI file).
+    
+    Inputs:
+        X = numpy array with variable for which we want the time derivative
+        
+        t = numpy array with time from file (tval)
+                               
+    Outputs:
+        dXdt = numpy array with time derivative of X with respect to t
+    """
+
+    nX = len(X)
+    nt = len(t)
+    assert nX == nt 
+    
+    # Create array to put dXdt into
+    dXdt = np.full( nX, np.nan, dtype=float )
+    
+    # Use stencils to calculate derivatives.
+    # We may have unequal intervals, so we must use the correct stencils
+    #
+    # Singh, Ashok K., and B. S. Bhadauria. "Finite difference formulae for 
+    # unequal sub-intervals using Lagrange’s interpolation formula." Int. J. 
+    # Math. Anal 3.17 (2009): 815.
+    
+    for i in range(nX):
+        if i > 0 and i < nX-1: # in interior of array
+            h1 = t[i]   - t[i-1]
+            h2 = t[i+1] - t[i]
+            f0 = X[i-1]
+            f1 = X[i]
+            f2 = X[i+1]
+            dXdt[i] = - h2/h1/(h1+h2)*f0 - (h1-h2)/h1/h2*f1 + h1/h2/(h1+h2)*f2
+        elif i == 0: # at beginning of array
+            h1 = t[i+1] - t[i]
+            h2 = t[i+2] - t[i+1]
+            f0 = X[i]
+            f1 = X[i+1]
+            f2 = X[i+2]
+            dXdt[i] = - h1/h2/(h1+h2)*f2 + (h1+h2)/h1/h2*f1 - (2*h1+h2)/h1/(h1+h2)*f0        
+        else: # i == nX-1: at end of array
+            h1 = t[i-1] - t[i-2]
+            h2 = t[i]   - t[i-1]
+            f0 = X[i-2]
+            f1 = X[i-1]
+            f2 = X[i]
+            dXdt[i] =   h2/h1/(h1+h2)*f0 - (h1+h2)/h1/h2*f1 + (2*h2+h1)/h2/(h1+h2)*f2   
+    
+    return dXdt
+
 
 if __name__ == "__main__":
     

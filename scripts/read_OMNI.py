@@ -15,13 +15,13 @@ from file_info import file_info
 if __name__ == "__main__":
 
     # whether to parse OMNI data
-    PARSE = True
+    PARSE = False
 
     # whether to generate OMNI stats
     STATS = True
     
     # whether to generate OMNI plots
-    PLOTS = True
+    PLOTS = False
 
     ############## read OMNI data
 
@@ -53,6 +53,7 @@ if __name__ == "__main__":
         for yr in yrs:
             for num in nums:
                 for dist in dists:
+                    print( yr, num, dist )
                     swm.omni_stats(file_info, yr, num, dist)
     
    ############## generate OMNI Plots

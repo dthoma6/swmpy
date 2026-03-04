@@ -9,12 +9,11 @@ Created on 9 Dec 2025
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from numba import njit
 from datetime import datetime, timedelta, timezone
 from os.path import join, basename, dirname
 import fortranformat as ff
 
-from swmpy.utils import set_plot_rcParams
+from swmpy.utils import set_plot_rcParams, calc_dXdt
 
 # Parses OMNI solar wind data and creates pickle file with the data
 #
@@ -296,105 +295,8 @@ def omni_read( info, year ):
     omnidf.to_pickle( newfile )
     return
 
-def _test_calc_dXdt( filepath ):
-    """ Test calcdXdt subroutine using arrays with known derivatives
-    
-    Inputs:
-        filepath: path to OMNI file
-        
-    Outputs:
-        stdout on whether test succeeded or no
-    """
-    omni = pd.read_pickle( filepath )
-    
-    # Remove lines with no data and get UNIX timestamp in ms
-    omnidf = omni.dropna( subset=['Year', 'Day', 'Hour', 'Minute'] )
-    omnidf['tval'] = omnidf['Datetime'].astype('int64') / 10**9
-
-    # Create column with with known derivative
-    print( 'Test constant, non-zero slope')
-    omnidf['test1'] = 10*omnidf['tval']
-    dXdt = _calc_dXdt( omnidf['test1'].to_numpy(), omnidf['tval'].to_numpy() )
-    for x in dXdt:
-        if not np.isclose( x, 10 ):
-            print( 'Error in calcdXdt' )
-    print( 'Non-zero slope test complete')
-    
-    print( 'Test constant, zero slope')
-    omnidf['test2'] = 10
-    dXdt = _calc_dXdt( omnidf['test2'].to_numpy(), omnidf['tval'].to_numpy() )
-    for x in dXdt:
-        if not np.isclose( x, 0 ):
-            print( 'Error in calcdXdt' )
-    print( 'Zero slope test complete')
-
-    print( 'Test parabolic slope')
-    omnidf['test3'] = omnidf['tval']**2
-    dXdt = _calc_dXdt( omnidf['test3'].to_numpy(), omnidf['tval'].to_numpy() )
-    for i in range(len(dXdt)):
-        x = dXdt[i]
-        t = omnidf['tval'][i]
-        if not np.isclose( x, 2*t ):
-            print( 'Error in calcdXdt' )
-    print( 'Parabolic slope test complete')
-    return
-    
-@njit
-def _calc_dXdt(X, t):
-    """ Subroutine for omnistats that allows numba accelleration. It  
-    calculates time derivative of X using data from OMNI file.
-    
-    Inputs:
-        X = numpy array with OMNI variable for which we want the time derivative
-        
-        t = numpy array with time from OMNI file (tval)
-                               
-    Outputs:
-        dXdt = numpy array with time derivative of X with respect to t
-    """
-
-    nX = len(X)
-    nt = len(t)
-    assert nX == nt 
-    
-    # Create array to put dXdt into
-    dXdt = np.full( nX, np.nan, dtype=float )
-    
-    # Use stencils to calculate derivatives.
-    # We may have unequal intervals, so we must use the correct stencils
-    #
-    # Singh, Ashok K., and B. S. Bhadauria. "Finite difference formulae for 
-    # unequal sub-intervals using Lagrange’s interpolation formula." Int. J. 
-    # Math. Anal 3.17 (2009): 815.
-    
-    for i in range(nX):
-        if i > 0 and i < nX-1: # in interior of array
-            h1 = t[i]   - t[i-1]
-            h2 = t[i+1] - t[i]
-            f0 = X[i-1]
-            f1 = X[i]
-            f2 = X[i+1]
-            dXdt[i] = - h2/h1/(h1+h2)*f0 - (h1-h2)/h1/h2*f1 + h1/h2/(h1+h2)*f2
-        elif i == 0: # at beginning of array
-            h1 = t[i+1] - t[i]
-            h2 = t[i+2] - t[i+1]
-            f0 = X[i]
-            f1 = X[i+1]
-            f2 = X[i+2]
-            dXdt[i] = - h1/h2/(h1+h2)*f2 + (h1+h2)/h1/h2*f1 - (2*h1+h2)/h1/(h1+h2)*f0        
-        else: # i == nX-1: at end of array
-            h1 = t[i-1] - t[i-2]
-            h2 = t[i]   - t[i-1]
-            f0 = X[i-2]
-            f1 = X[i-1]
-            f2 = X[i]
-            dXdt[i] =   h2/h1/(h1+h2)*f0 - (h1+h2)/h1/h2*f1 + (2*h2+h1)/h2/(h1+h2)*f2   
-    
-    return dXdt
-
 def omni_stats(info, year, number, distance):
-    """Calculates statistics (mean and std deviation) for parameters in the
-    OMNI solar wind files.  
+    """Calculates statistics (mean) for parameters in the OMNI solar wind files.  
 
     Inputs:
         info = information, such as paths to directories, for run
@@ -423,7 +325,6 @@ def omni_stats(info, year, number, distance):
     omnidf = omni.dropna( subset=['Year', 'Day', 'Hour', 'Minute'] )
     omnidf['tval'] = omnidf['Datetime'].astype('int64') / 10**9
     
-    
     # Ballistically propagate the solar wind conditions.  That is, add delay
     # for solar wind to travel from OMNI BSN (Re) to DIST (Re) along GSE x axis
     # Only propagate if distance is not None.
@@ -450,65 +351,37 @@ def omni_stats(info, year, number, distance):
     
     # Create lists to store stats in
     B_mag_mean = []
-    B_mag_std  = []
     
     Bx_GSE_GSM_mean = []
     By_GSE_mean = []
     Bz_GSE_mean = []
-    Bx_GSE_GSM_std = []
-    By_GSE_std = []
-    Bz_GSE_std = []
     
     By_GSM_mean = []
     Bz_GSM_mean = []
-    By_GSM_std = []
-    Bz_GSM_std = []
     
     V_mag_mean = []
-    V_mag_std  = []
     
     Vx_GSE_mean = []
     Vy_GSE_mean = []
     Vz_GSE_mean = []
-    Vx_GSE_std = []
-    Vy_GSE_std = []
-    Vz_GSE_std = []
     
     n_mean = []
-    n_std  = []
-    
     T_mean = []
-    T_std  = []
-    
     P_mean = []
-    P_std  = []
-    
     E_mean = []
-    E_std  = []
-    
     beta_mean = []
-    beta_std  = []
-    
     Alfven_mean = []
-    Alfven_std  = []
-    
     # Commented out because frequently too few samples in data
     # NaNp_mean = []
-    # NaNp_std  = []
-    
     Mach_mean = []
-    Mach_std  = []
     
-    tval_std   = []
-    date_std   = []
-    cnt_std    = []
+    tval_mean  = []
+    date_mean  = []
+    cnt_mean   = []
     
     dBdt_mean  = []
-    dBdt_std   = []
     dVdt_mean  = []
-    dVdt_std   = []
     dndt_mean  = []
-    dndt_std   = []
     
     maxidx = omnidf.shape[0]
     
@@ -563,7 +436,7 @@ def omni_stats(info, year, number, distance):
         # NaNp_tmp      = np.full( number, np.nan, dtype=float )
         Mach_tmp       = np.full( number, np.nan, dtype=float )
         tval_tmp       = np.full( number, np.nan, dtype=float )
-        cnt_tmp        = 0 # counter to see if we have enough samples to find std dev
+        cnt_tmp        = 0 # counter to see if we have enough samples to find mean
         
         # Loop through array to get number samples for stats        
         for j in range(number):
@@ -611,73 +484,45 @@ def omni_stats(info, year, number, distance):
                 # else:
                 #     print( 'Time problem ', i, j, tval[j+startidx], startdate)
                
-        # If we have enough points to determine mean, std deviation, store stats
-        if cnt_tmp > 1:
+        # If we have enough points to determine mean, store stats
+        if cnt_tmp > 0:
             B_mag_mean.append( np.nanmean(B_mag_tmp) )
-            B_mag_std.append( np.nanstd(B_mag_tmp) )
            
             Bx_GSE_GSM_mean.append( np.nanmean(Bx_GSE_GSM_tmp) )
             By_GSE_mean.append( np.nanmean(By_GSE_tmp) )
             Bz_GSE_mean.append( np.nanmean(Bz_GSE_tmp) )
-            Bx_GSE_GSM_std.append( np.nanstd(Bx_GSE_GSM_tmp) )
-            By_GSE_std.append( np.nanstd(By_GSE_tmp) )
-            Bz_GSE_std.append( np.nanstd(Bz_GSE_tmp) )
             
             By_GSM_mean.append( np.nanmean(By_GSM_tmp) )
             Bz_GSM_mean.append( np.nanmean(Bz_GSM_tmp) )
-            By_GSM_std.append( np.nanstd(By_GSM_tmp) )
-            Bz_GSM_std.append( np.nanstd(Bz_GSM_tmp) )
             
             V_mag_mean.append( np.nanmean(V_mag_tmp) )
-            V_mag_std.append( np.nanstd(V_mag_tmp) )
             
             Vx_GSE_mean.append( np.nanmean(Vx_GSE_tmp) )
             Vy_GSE_mean.append( np.nanmean(Vy_GSE_tmp) )
             Vz_GSE_mean.append( np.nanmean(Vz_GSE_tmp) )
-            Vx_GSE_std.append( np.nanstd(Vx_GSE_tmp) )
-            Vy_GSE_std.append( np.nanstd(Vy_GSE_tmp) )
-            Vz_GSE_std.append( np.nanstd(Vz_GSE_tmp) )
             
             n_mean.append( np.nanmean(n_tmp) )
-            n_std.append( np.nanstd(n_tmp) )
-            
             T_mean.append( np.nanmean(T_tmp) )
-            T_std.append( np.nanstd(T_tmp) )
-            
             P_mean.append( np.nanmean(P_tmp) )
-            P_std.append( np.nanstd(P_tmp) )
-            
             E_mean.append( np.nanmean(E_tmp) )
-            E_std.append( np.nanstd(E_tmp) )
-            
             beta_mean.append( np.nanmean(beta_tmp) )
-            beta_std.append( np.nanstd(beta_tmp) )
-            
             Alfven_mean.append( np.nanmean(Alfven_tmp) )
-            Alfven_std.append( np.nanstd(Alfven_tmp) )
-            
             # Commented out because frequently too few samples in data
             # NaNp_mean.append( np.nanmean(NaNp_tmp) )
-            # NaNp_std.append( np.nanstd(NaNp_tmp) )
-            
             Mach_mean.append( np.nanmean(Mach_tmp) )
-            Mach_std .append( np.nanstd(Mach_tmp) )
             
-            tval_std.append( startdate )
-            date_std.append( datetime.fromtimestamp(startdate, tz=timezone.utc) )
-            cnt_std.append( cnt_tmp )
+            tval_mean.append( startdate )
+            date_mean.append( datetime.fromtimestamp(startdate, tz=timezone.utc) )
+            cnt_mean.append( cnt_tmp )
             
             # Calculate time derivatives of |B|, |V|, and n
-            dBdt = _calc_dXdt(B_mag_tmp, tval_tmp)
-            dVdt = _calc_dXdt(V_mag_tmp, tval_tmp)
-            dndt = _calc_dXdt(n_tmp, tval_tmp)
+            dBdt = calc_dXdt(B_mag_tmp, tval_tmp)
+            dVdt = calc_dXdt(V_mag_tmp, tval_tmp)
+            dndt = calc_dXdt(n_tmp, tval_tmp)
             
             dBdt_mean.append( np.nanmean(dBdt) )
-            dBdt_std.append( np.nanstd(dBdt) )
             dVdt_mean.append( np.nanmean(dVdt) )
-            dVdt_std.append( np.nanstd(dVdt) )
             dndt_mean.append( np.nanmean(dndt) )
-            dndt_std.append( np.nanstd(dndt) )
         
         # Update startdate for next loop
         # It's one minute (60 seconds) past last enddate
@@ -688,65 +533,37 @@ def omni_stats(info, year, number, distance):
     
     # We're done with the loop, store the stats in a pickle file
     statsdf = pd.DataFrame( ) 
-    statsdf['tval']        = tval_std
-    statsdf['Datetime']    = date_std
-    statsdf['Sample Size'] = cnt_std
+    statsdf['tval']        = tval_mean
+    statsdf['Datetime']    = date_mean
+    statsdf['Sample Size'] = cnt_mean
     
     statsdf['|B| Mean'] = B_mag_mean 
-    statsdf['|B| STD']  = B_mag_std  
     
     statsdf['Bx, nT (GSE, GSM) Mean'] = Bx_GSE_GSM_mean 
     statsdf['By, nT (GSE) Mean']      = By_GSE_mean 
     statsdf['Bz, nT (GSE) Mean']      = Bz_GSE_mean 
-    statsdf['Bx, nT (GSE, GSM) STD']  = Bx_GSE_GSM_std 
-    statsdf['By, nT (GSE) STD']       = By_GSE_std 
-    statsdf['Bz, nT (GSE) STD']       = Bz_GSE_std 
     statsdf['By, nT (GSM) Mean']      = By_GSM_mean 
     statsdf['Bz, nT (GSM) Mean']      = Bz_GSM_mean 
-    statsdf['By, nT (GSM) STD']       = By_GSM_std 
-    statsdf['Bz, nT (GSM) STD']       = Bz_GSM_std 
     
     statsdf['|V| Mean'] = V_mag_mean 
-    statsdf['|V| STD']  = V_mag_std  
     
     statsdf['Vx Velocity, km/s, GSE Mean'] = Vx_GSE_mean 
     statsdf['Vy Velocity, km/s, GSE Mean'] = Vy_GSE_mean 
     statsdf['Vz Velocity, km/s, GSE Mean'] = Vz_GSE_mean 
-    statsdf['Vx Velocity, km/s, GSE STD']  = Vx_GSE_std 
-    statsdf['Vy Velocity, km/s, GSE STD']  = Vy_GSE_std 
-    statsdf['Vz Velocity, km/s, GSE STD']  = Vz_GSE_std 
     
     statsdf['Proton Density, n/cc Mean']   = n_mean 
-    statsdf['Proton Density, n/cc STD']    = n_std  
-    
     statsdf['Temperature, K Mean']         = T_mean 
-    statsdf['Temperature, K STD']          = T_std  
-    
     statsdf['Flow pressure, nPa Mean']     = P_mean 
-    statsdf['Flow pressure, nPa STD']      = P_std  
-    
     statsdf['Electric field, mV/m Mean']   = E_mean 
-    statsdf['Electric field, mV/m STD']    = E_std  
-    
     statsdf['Plasma beta Mean']            = beta_mean 
-    statsdf['Plasma beta STD']             = beta_std  
-    
     statsdf['Alfven mach number Mean']     = Alfven_mean 
-    statsdf['Alfven mach number STD']      = Alfven_std  
-    
     # Commented out because frequently too few samples in data
     # statsdf['Na/Np Ratio Mean']            = NaNp_mean 
-    # statsdf['Na/Np Ratio STD']             = NaNp_std  
-    
     statsdf['Magnetosonic mach number Mean'] = Mach_mean 
-    statsdf['Magnetosonic mach number STD']  = Mach_std  
     
     statsdf['d|B|/dt Mean'] = dBdt_mean 
-    statsdf['d|B|/dt STD']  = dBdt_std 
     statsdf['d|V|/dt Mean'] = dVdt_mean 
-    statsdf['d|V|/dt STD']  = dVdt_std 
     statsdf['dn/dt Mean']   = dndt_mean 
-    statsdf['dn/dt STD']    = dndt_std 
 
     if distance is None:
         file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl' 
@@ -757,9 +574,8 @@ def omni_stats(info, year, number, distance):
     return
 
 def omni_plots(info, year, number, distance):
-    """Generates plots of the statistics (mean and std deviation) for a 
-       subset of the parameters in the OMNI solar wind files.  Used as a
-       quick check of results.
+    """Generates plots of the statistics (mean) for a subset of the parameters 
+    in the OMNI solar wind files.  Used as a quick check of results.
 
     Inputs:
         info = information, such as paths to directories, for run
@@ -803,12 +619,12 @@ def omni_plots(info, year, number, distance):
             str(year) + '.pkl' 
     statsdf = pd.read_pickle( join(omnidirectory, file) )    
     
-    # Create array showing when data is available to compare to cnt_std.
+    # Create array showing when data is availabled.
     # A check to verify that we're doing everything correctly.
     # 
     # dataavail is number+2 when a point is non-nan, and nan otherwise
     #
-    # Plot along side cnt_std below to see if they match up.
+    # Plot along side number of samples to see if they match up.
     dataavail = np.full(len(omnidf['B_mag']), np.nan, dtype=float)    
     for i in range(len(omnidf['B_mag'])): 
         if not np.isnan( omnidf['B_mag'][i] ): 
@@ -817,27 +633,23 @@ def omni_plots(info, year, number, distance):
     # Plot some of the stats for quality control
     set_plot_rcParams( fontsize=5 )
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].scatter( statsdf['Datetime'], statsdf['|B| STD'], 
-                  label=r'$|B|$ STD', s=3 )
     ax[0].scatter( statsdf['Datetime'], statsdf['|B| Mean'], 
                   label=r'$|B|$ Mean', s=3 )
     ax[0].legend()
-    ax[1].scatter( statsdf['Datetime'], statsdf['|V| STD'], 
-                  label=r'$|V|$ STD', s=3 )
     ax[1].scatter( statsdf['Datetime'], statsdf['|V| Mean'], 
                   label=r'$|V|$ Mean', s=3 )
     ax[1].legend()
     ax[2].scatter( statsdf['Datetime'], statsdf['Sample Size'], 
-                  label=r'number. of Samples', s=3 )
+                  label=r'Number. of Samples', s=3 )
     ax[2].scatter( omnidf['Datetime'], dataavail, 
                   label=r'Data Available', s=3 )
-    ax[0].set_ylabel(r'$|B|$ STD and Mean')
-    ax[1].set_ylabel(r'$|V|$ STD and Mean')
+    ax[0].set_ylabel(r'$|B|$ Mean')
+    ax[1].set_ylabel(r'$|V|$ Mean')
     ax[2].set_ylabel(r'Sample Size')
     ax[2].legend()
     ax[2].set_xlabel("Date")
     if distance is None:
-        fig.suptitle('No ballistic propagation' + str(number) + 'min '+ str(year))
+        fig.suptitle('No ballistic propagation ' + str(number) + 'min '+ str(year))
         file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.png'
     else:
         fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
@@ -848,24 +660,18 @@ def omni_plots(info, year, number, distance):
     
     # Plot some of the stats for quality control
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].scatter( statsdf['Datetime'], np.log10(statsdf['d|B|/dt STD']), 
-                  label=r'$log_{10}(d|B|/dt$ STD)', s=3 )
     ax[0].scatter( statsdf['Datetime'], np.log10(statsdf['d|B|/dt Mean']), 
                   label=r'$log_{10}(d|B|/dt$ Mean)', s=3 )
     ax[0].legend()
-    ax[1].scatter( statsdf['Datetime'], np.log10(statsdf['d|V|/dt STD']), 
-                  label=r'$log_{10}(d|V|/dt$ STD)', s=3 )
     ax[1].scatter( statsdf['Datetime'], np.log10(statsdf['d|V|/dt Mean']), 
                   label=r'$log_{10}(d|V|/dt$ Mean)', s=3 )
     ax[1].legend()
-    ax[2].scatter( statsdf['Datetime'], np.log10(statsdf['dn/dt STD']), 
-                  label=r'$log_{10}(dn/dt$ STD)', s=3 )
     ax[2].scatter( statsdf['Datetime'], np.log10(statsdf['dn/dt Mean']), 
                   label=r'$log_{10}(dn/dt$ Mean)', s=3 )
     ax[2].legend()
-    ax[0].set_ylabel(r'$log_{10}((d|B|/dt)$ STD and Mean')
-    ax[1].set_ylabel(r'$log_{10}(d|V|/dt)$ STD and Mean')
-    ax[2].set_ylabel(r'$log_{10}(dn/dt)$ STD and Mean')
+    ax[0].set_ylabel(r'$log_{10}((d|B|/dt)$ Mean')
+    ax[1].set_ylabel(r'$log_{10}(d|V|/dt)$ Mean')
+    ax[2].set_ylabel(r'$log_{10}(dn/dt)$ Mean')
     ax[2].set_xlabel("Date")
     
     if distance is None:
@@ -880,16 +686,3 @@ def omni_plots(info, year, number, distance):
     fig.savefig( join(omnidirectory, file) )
 
     return
-
-if __name__ == "__main__":
-
-    # Test calc_dXdt
-
-    # Year for OMNI data
-    yr=2024
-    
-    # Directory where the OMNI files are stored
-    directory = "/Volumes/PhysicsHD/swmpy/OMNI/"
-
-    fpath = directory + "omni_min" + str(yr) + ".asc.txt.pkl"
-    _test_calc_dXdt( fpath )
