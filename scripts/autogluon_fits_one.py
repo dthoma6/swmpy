@@ -67,6 +67,10 @@ if __name__ == "__main__":
     # single year parameters are included in that run_info
     def get_run_info_one( station, year, number, distance ): 
         
+        if number is None and distance is not None: 
+            import sys
+            sys.exit('Error: If number is None, distance must be None.')
+
         run_info = {
             "info": "single",  # one year, one station
             "usebh": USEBH,

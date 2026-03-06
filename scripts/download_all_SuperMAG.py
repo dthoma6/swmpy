@@ -19,7 +19,10 @@ if __name__ == "__main__":
     DOWNLOAD = False
     
     # Whether to calculate SuperMAG statistics
-    STATS = True
+    STATS = False
+    
+    # Whether to generate raw SuperMAG files
+    RAW = True
     
     # Whether to plot SuperMAG statistics
     PLOTSTATS = False
@@ -51,6 +54,10 @@ if __name__ == "__main__":
         for yr in yrs:
             for num in nums: 
                 swm.supermag_stats(file_info, yr, num)
+                
+    if RAW:
+        for yr in yrs:
+            swm.supermag_raw(file_info, yr)
 
     ################# SuperMAG stats
     

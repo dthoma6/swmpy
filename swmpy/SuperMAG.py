@@ -432,6 +432,63 @@ def supermag_stats(info, year, number):
         
     return
 
+def supermag_raw(info, year):
+    """Converts raw SuperMAG to same format as statistics data (see supermag_stats)
+    so autogluon fit can be made on the raw data using the same routines as used
+    for the other data.
+
+    Inputs:
+        info = infomation, such as paths to directories, for run
+
+        year = year for associated SuperMAG station data filenames
+        
+     Outputs:
+        pickle files with raw data
+    """
+        
+    # get list of stations
+    smdirectory = info["SuperMAG Directory"]
+    stations = stations_list(year, smdirectory)
+    
+    # Read pickle filenames for each SuperMAG station and determine stats for magnetic field
+    for station in stations:
+        print( year, station )
+        
+        filename = station + '-' + str(year) + '.pkl' 
+        df = pd.read_pickle( join(smdirectory, filename) )
+        
+        # Get magnetic field data for station
+        N_nez = np.array( [temp['nez'] for temp in df.N] )
+        E_nez = np.array( [temp['nez'] for temp in df.E] )
+        # Z_nez = np.array( [temp['nez'] for temp in df.Z] )
+        B_H   = np.sqrt( N_nez**2 + E_nez**2 )
+        
+        tval = df.tval.to_numpy()
+        dval = df.Datetime.to_numpy(dtype=datetime)
+        
+        glon   = df.glon.to_numpy()
+        glat   = df.glat.to_numpy()
+        mlt    = df.mlt.to_numpy()
+        mcolat = df.mcolat.to_numpy()
+        
+        dBHdt = calc_dXdt(B_H, tval)
+        
+        statsdf = pd.DataFrame( ) 
+        statsdf['tval']        = tval
+        statsdf['Datetime']    = dval
+        statsdf['B_H Mean']    = B_H
+        statsdf['dB_H/dt Mean']= dBHdt
+        statsdf['Sample Size'] = np.ones( len(tval) )
+        statsdf['glon']        = glon
+        statsdf['glat']        = glat
+        statsdf['mlt']         = mlt
+        statsdf['mcolat']      = mcolat
+   
+        file = station + '-stats-None-' + str(year) + '.pkl'
+        statsdf.to_pickle( join(smdirectory, file) ) 
+        
+    return
+
 def supermag_plots(info, year, number):
     """Generates plots of the statistics (mean) for a subset of the parameters 
     in the SuperMAG magnetometer files.  Used as a quick check of results. 

@@ -18,7 +18,10 @@ if __name__ == "__main__":
     PARSE = False
 
     # whether to generate OMNI stats
-    STATS = True
+    STATS = False
+    
+    # whether to generate raw OMNI files
+    RAW = True
     
     # whether to generate OMNI plots
     PLOTS = False
@@ -55,6 +58,10 @@ if __name__ == "__main__":
                 for dist in dists:
                     print( yr, num, dist )
                     swm.omni_stats(file_info, yr, num, dist)
+                    
+    if RAW:
+        for yr in yrs:
+            swm.omni_raw( file_info, yr )
     
    ############## generate OMNI Plots
    

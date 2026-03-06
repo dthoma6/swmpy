@@ -573,6 +573,108 @@ def omni_stats(info, year, number, distance):
     statsdf.to_pickle( join(omnidirectory, file) )    
     return
 
+def omni_raw(info, year):
+    """Converts raw OMNI to same format as statistics data (see omni_stats)
+    so autogluon fit can be made on the raw data using the same routines as used
+    for the other data.
+
+    Inputs:
+        info = information, such as paths to directories, for run
+
+        year = year for associated OMNI solar wind file
+                
+     Outputs:
+        pickle file with statistics
+    """
+    # path to OMNI data directory, files will be read and saved from there
+    omnidirectory = info["OMNI Directory"]
+    
+    # path to OMNI solar wind pickle file
+    filepath = join(omnidirectory, "omni_min" + str(year) + ".asc.txt.pkl" )
+    omni = pd.read_pickle( filepath )
+    
+    # Remove lines with no data and get UNIX timestamp in ms
+    omnidf = omni.dropna( subset=['Year', 'Day', 'Hour', 'Minute'] )
+    omnidf['tval'] = omnidf['Datetime'].astype('int64') / 10**9
+            
+    # Get the magnitude of vectors for stats
+    omnidf['B_mag'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
+                              omnidf['By, nT (GSE)'] **2 + 
+                              omnidf['Bz, nT (GSE)']**2 )
+    omnidf['V_mag'] = np.sqrt( omnidf['Vx Velocity, km/s, GSE']**2 + 
+                              omnidf['Vy Velocity, km/s, GSE']**2 + 
+                              omnidf['Vz Velocity, km/s, GSE'] **2 )
+    
+    # Get tval values. Useful below.
+    tval = omnidf['tval']
+    dval = pd.to_datetime(omnidf['tval'], unit='s')
+    
+    B_mag      = omnidf['B_mag']
+    Bx_GSE_GSM = omnidf['Bx, nT (GSE, GSM)']
+    By_GSE     = omnidf['By, nT (GSE)']
+    Bz_GSE     = omnidf['Bz, nT (GSE)']
+    By_GSM     = omnidf['By, nT (GSM)']
+    Bz_GSM     = omnidf['Bz, nT (GSM)']
+    
+    V_mag      = omnidf['V_mag']
+    Vx_GSE     = omnidf['Vx Velocity, km/s, GSE']
+    Vy_GSE     = omnidf['Vy Velocity, km/s, GSE']
+    Vz_GSE     = omnidf['Vz Velocity, km/s, GSE']
+    
+    n      = omnidf['Proton Density, n/cc']
+    T      = omnidf['Temperature, K']
+    P      = omnidf['Flow pressure, nPa']
+    E      = omnidf['Electric field, mV/m']
+    
+    beta   = omnidf['Plasma beta']
+    Alfven = omnidf['Alfven mach number']
+    # Commented out because frequently too few samples in data
+    # NaNp   = omnidf['Na/Np Ratio']
+    Mach   = omnidf['Magnetosonic mach number']
+
+    # Calculate dX/dt values
+    dBdt = calc_dXdt(B_mag.values, tval.values)
+    dVdt = calc_dXdt(V_mag.values, tval.values)
+    dndt = calc_dXdt(n.values, tval.values)
+
+    # Store the raw data in a pickle file
+    statsdf = pd.DataFrame( ) 
+    statsdf['tval']        = tval
+    statsdf['Datetime']    = dval
+    statsdf['Sample Size'] = np.ones( len(tval) )
+    
+    statsdf['|B| Mean'] = B_mag
+    
+    statsdf['Bx, nT (GSE, GSM) Mean'] = Bx_GSE_GSM
+    statsdf['By, nT (GSE) Mean']      = By_GSE
+    statsdf['Bz, nT (GSE) Mean']      = Bz_GSE
+    statsdf['By, nT (GSM) Mean']      = By_GSM
+    statsdf['Bz, nT (GSM) Mean']      = Bz_GSM
+    
+    statsdf['|V| Mean'] = V_mag
+    
+    statsdf['Vx Velocity, km/s, GSE Mean'] = Vx_GSE
+    statsdf['Vy Velocity, km/s, GSE Mean'] = Vy_GSE
+    statsdf['Vz Velocity, km/s, GSE Mean'] = Vz_GSE 
+    
+    statsdf['Proton Density, n/cc Mean']   = n 
+    statsdf['Temperature, K Mean']         = T 
+    statsdf['Flow pressure, nPa Mean']     = P 
+    statsdf['Electric field, mV/m Mean']   = E 
+    statsdf['Plasma beta Mean']            = beta 
+    statsdf['Alfven mach number Mean']     = Alfven 
+    # Commented out because frequently too few samples in data
+    # statsdf['Na/Np Ratio Mean']            = NaNp 
+    statsdf['Magnetosonic mach number Mean'] = Mach 
+    
+    statsdf['d|B|/dt Mean'] = dBdt 
+    statsdf['d|V|/dt Mean'] = dVdt 
+    statsdf['dn/dt Mean']   = dndt 
+
+    file = 'OMNI-stats-None-' + str(year) + '.pkl' 
+    statsdf.to_pickle( join(omnidirectory, file) )    
+    return
+
 def omni_plots(info, year, number, distance):
     """Generates plots of the statistics (mean) for a subset of the parameters 
     in the OMNI solar wind files.  Used as a quick check of results.

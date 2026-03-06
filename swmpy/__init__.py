@@ -13,11 +13,11 @@ logging.basicConfig(
     datefmt='%S')
 
 from .SuperMAG import supermag_download, supermag_download_all, supermag_stats,\
-    supermag_plots
+    supermag_raw, supermag_plots
 
-from .OMNI import omni_read, omni_stats, omni_plots
+from .OMNI import omni_read, omni_stats, omni_raw, omni_plots
 
-from .Kp import kp_read, kp_stats
+from .Kp import kp_read, kp_stats, kp_raw
 
 from .scatter_matrix import scatter_matrix
 

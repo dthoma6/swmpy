@@ -15,8 +15,11 @@ if __name__ == "__main__":
     PARSE = False
 
     # whether to generate Kp stats
-    STATS = True
-
+    STATS = False
+    
+    # whether to generate raw Kp files
+    RAW = True
+    
     # Process the Kp solar wind files. Kp data downloaded from:
     # https://kp.gfz.de/en/data
     #
@@ -42,3 +45,7 @@ if __name__ == "__main__":
         for yr in yrs:
             for num in nums:
                 swm.kp_stats(file_info, yr, num)
+
+    if RAW:
+        for yr in yrs:
+            swm.kp_raw(file_info, yr)

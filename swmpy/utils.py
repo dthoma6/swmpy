@@ -217,18 +217,27 @@ def _merge_files( file_info, run_info ):
     includedXdt = run_info['includedXdt']
                  
     # Get dataframes and merge them
-    if distance is None:
-        filename = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl'
+    if number is None:
+        filename = 'OMNI-stats-None-' + str(year) + '.pkl' 
     else:
-        filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
+        if distance is None:
+            filename = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl'
+        else:
+            filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
     omnidf = pd.read_pickle( join(omnidirectory, filename) )  
     omnidf.set_index('Datetime')
 
-    filename = station + '-stats-' + str(number) + 'min-' + str(year) + '.pkl'
+    if number is None:
+        filename = station + '-stats-None-' + str(year) + '.pkl'
+    else:
+        filename = station + '-stats-' + str(number) + 'min-' + str(year) + '.pkl'
     smdf = pd.read_pickle( join(supermagdirectory, filename) )
     smdf.set_index('Datetime')
     
-    filename = 'Kp-stats-' + str(number) + 'min-' + str(year) + '.pkl'
+    if number is None:
+        filename = 'Kp-stats-' + str(year) + '.pkl'
+    else:
+        filename = 'Kp-stats-' + str(number) + 'min-' + str(year) + '.pkl'
     kpdf = pd.read_pickle( join(kpdirectory, filename) )
     kpdf.set_index('Datetime')
 

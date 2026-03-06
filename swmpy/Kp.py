@@ -127,3 +127,52 @@ def kp_stats(info, year, number):
     
     return
 
+def kp_raw(info, year):
+    """Provides Kp values to one minute time periods for raw SuperMAG data.  
+
+    Inputs:
+        info = information, such as paths to directories, for run
+
+        year = year for associated SuperMAG station data filenames
+        
+     Outputs:
+        pickle files with Kp values
+    """
+
+    # Read Kp pickle file
+    kpdirectory = info["Kp Directory"]
+    filepath = join(kpdirectory, "Kp_" + str(year) + ".txt.pkl" )
+    df = pd.read_pickle( filepath )
+    
+    # We have 8 Kp entries per day. So each Kp entry covers 3 hours
+    # (See the columns labeled Kp1, Kp2, ... Kp8 in dataframe)
+    # We have to repeat each Kp value num times...
+    num = 180
+    
+    # Storage for dates and Kp values
+    dval  = []
+    kpval = []
+    
+    # Loop through entries in Kp dataframe
+    for i in range(len(df)):
+    
+        # Each line in Kp dataframe is for one day
+        tmpdate = df['Datetime'][i] 
+        
+        # 8 Kp values/day
+        for j in range(8):
+            # num values per 3 hr window
+            for k in range(num):
+                dval.append( tmpdate + timedelta( hours=3*j, minutes=k ) )
+                kpval.append( df['Kp'+str(j+1)][i] )
+        
+    # We're done with the loop, store the stats in a pickle file
+    kpdf = pd.DataFrame( ) 
+    kpdf['Datetime'] = dval
+    kpdf['Kp']       = kpval
+
+    file = 'Kp-stats-' + str(year) + '.pkl'
+    kpdf.to_pickle( join(kpdirectory, file) ) 
+    
+    return
+

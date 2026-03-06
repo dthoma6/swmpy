@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # USELOG True, log of all independent and dependent variables
     # USELOGY True, log of dependent variable only
     USELOG = False
-    USELOGY = False 
+    USELOGY = True 
     if USELOG and USELOGY: 
         import sys
         sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
@@ -65,12 +65,17 @@ if __name__ == "__main__":
     # Whether to generate regression fit or quantile fit
     REGRESSION = True
     
+
     # Get run_info on flags and other run parameters
     # Note, there are a few differences between run_info for all data
     # and run_info for single station in a single year.  Single stations and
     # single year parameters are included in that run_info
     def get_run_info_all( number, distance ): 
         
+        if number is None and distance is not None: 
+            import sys
+            sys.exit('Error: If number is None, distance must be None.')
+
         run_info = {
             "info": 'all',  # all years, all stations
             "usebh": USEBH,
