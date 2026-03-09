@@ -31,33 +31,17 @@ if __name__ == "__main__":
     
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
-    KP = 7.0
+    KPLOWER = 7.0
     
-    # |B| threshold, we keep on data with "|B| mean" (OMNI) above the threshold
-    # defined by number of std deviations.  Drop data with less than
-    # mean + num. of std deviations. Use None, if we want to keep all data
-    #
-    # Doesn't work as well as the Kp threshold
-    BTHRESHOLD = None 
+    # We only use data with a KP below this.
+    # Use None, if we want to keep all data
+    KPUPPER = None
     
-    if KP is not None and BTHRESHOLD is not None: 
-        import sys
-        sys.exit('Error: Either KP or BTHRESHOLD is not None, but not both.')
-
-    # Include list of variables that we want to square in the fit
-    # e.g., we want '|V| Mean' and '|V| Mean Square' in the fit, add
-    # '|V| Mean' to list.  Otherwise, set to None
-    #
-    # Adding squares of ['|B| Mean', '|V| Mean', 'Proton Density, n/cc Mean']
-    # made no meaningful change.  For Kp=7.0, LogBH regression, the added
-    # features were near 0 in importance
-    ADDSQUARES = None 
-
     # Whether data is standardized, data ==> data = (data-mean)/(std dev)
     STANDARDIZE = False
-        
+
     # Whether to generate fits
-    FITS = True
+    FITS = False
     
     # Whether to generate plots
     PLOTS = True
@@ -65,7 +49,6 @@ if __name__ == "__main__":
     # Whether to generate regression fit or quantile fit
     REGRESSION = True
     
-
     # Get run_info on flags and other run parameters
     # Note, there are a few differences between run_info for all data
     # and run_info for single station in a single year.  Single stations and
@@ -85,9 +68,8 @@ if __name__ == "__main__":
             "includedXdt": INCLUDEDXDT,
             "number": number,
             "distance": distance,
-            "Kp": KP,
-            '|B| threshold': BTHRESHOLD,
-            "addsquares": ADDSQUARES
+            "Kp Lower": KPLOWER,
+            "Kp Upper": KPUPPER,
             }
         
         return run_info

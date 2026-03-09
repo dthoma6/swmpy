@@ -131,7 +131,7 @@ def _remove_dXdt( df ):
  
 def _remove_zeros_add_logs( df, uselog, includedXdt ):
     """Drops variables that equal 0, and if uselog is true, take the log of 
-    the variables.  
+    the OMNI variables.  
     
     Inputs:
         df = dataframe that includes OMNI and SuperMAG data
@@ -170,7 +170,24 @@ def _remove_zeros_add_logs( df, uselog, includedXdt ):
 
     return df
 
-def _remove_kp( df, kp ):
+def _remove_kp_upper( df, kp ):
+    """Drops rows that have a Kp > kp  
+    
+    Inputs:
+        df = dataframe that includes OMNI and SuperMAG data
+        
+        kp = Kp threshold
+                
+    Outputs:
+        dataframe without rows values above Kp threshold
+    """
+    
+    if kp is not None:
+        df = df.drop(df[df['Kp'] > kp].index)
+
+    return df
+ 
+def _remove_kp_lower( df, kp ):
     """Drops rows that have a Kp < kp  
     
     Inputs:
@@ -210,14 +227,16 @@ def _merge_files( file_info, run_info ):
     number   = run_info['number']
     distance = run_info['distance']
     station  = run_info['station']
-    kp       = run_info['Kp']
+    kpupper  = run_info['Kp Upper']
+    kplower  = run_info['Kp Lower']
     
     uselog      = run_info['uselog']
     uselogy     = run_info['uselogy']
     includedXdt = run_info['includedXdt']
                  
-    # Get dataframes and merge them
-    if number is None:
+    # Get OMNI, SuperMAG, and Kp dataframes and merge them.  Filenames depend 
+    # upon run_info parameters
+    if number is None: # Implies that distance is None
         filename = 'OMNI-stats-None-' + str(year) + '.pkl' 
     else:
         if distance is None:
@@ -254,29 +273,43 @@ def _merge_files( file_info, run_info ):
         import sys
         sys.exit('Error: Either uselog True or includedXdt True, but not both.')
     
-    # If we fit to log10(variables) (uselog is True), drop variables that are 
-    # positive and negative variables and we can't take log of them.  
-    #
-    # The one exception is dB_H/dt, we take the absolute value
+    # In next few if-thens, handle taking log10(variables).  They handle
+    # special cases of zero values and variables that can be negative
+    
+    # If we fit to log10(variables) (uselog is True), drop OMNI variables that 
+    # are positive and negative. We can't take the log of them.  We also take
+    # absolute value of dB_H/dt Mean (SuperMAG response variable).
     if uselog:
         df = _remove_pos_neg( df ) 
+        
+    # If we want log10 of response variable only, we take the absolute value
+    # if dB_H/dt Mean, which can be positive or negative
     if uselogy:
         df['dB_H/dt Mean'] = np.abs(df['dB_H/dt Mean'])
    
     # if includedXdt is False or uselog is True drop these variables
     # We're either not using them (includedXdt False) or they are positive and 
     # negative and we can't take the log of them (uselog is True)
-    # Note, don't need check  uselog here, since uselog can only be true
+    # Note, don't need to check uselog here, since uselog can only be true
     # if includedXdt is false.
     if not includedXdt:
         df = _remove_dXdt( df )
 
     # Drop rows with 0 values and, if uselog is true, take log10(variables)
+    # We have a small number of 0 values, and they appear to be bad data
     df = _remove_zeros_add_logs( df, uselog, includedXdt )
     
-    # if kp != None, drop rows with Kp values below kp
-    if kp is not None: 
-        df = _remove_kp( df, kp )
+    # If we only want log of response variable do it here
+    if run_info['uselogy']:
+        df['B_H Mean']     = np.log10( df['B_H Mean'] )
+        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
+
+    # if kpupper != None, drop rows with Kp values above threshold
+    # if kplower != None, drop rows with Kp values below threshold
+    if kpupper is not None: 
+        df = _remove_kp_upper( df, kpupper )
+    if kplower is not None: 
+        df = _remove_kp_lower( df, kplower )
     
     # Add circular response for mlt. Not done earlier in case uselog is true.  
     # We don't want the log of the sine and cosine.
@@ -327,26 +360,11 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
 
     # Merge the SuperMAG and OMNI files into a single dataframe
     df = _merge_files( file_info, run_info ) 
-    
-    # # Skip files with less than 50% of measurements per year
-    # # 0.5 * 365 days * 24 hours * 60 min = 262800 obsservations
-    # # we combine "number" observations to get mean.
-    # if len(df) < 262800/run_info['number']:
-    #     return None, None
-    
+        
     # Skip files with less than 50 data points
     if len(df) < 50:
         return None, None
                    
-    if run_info['uselogy']:
-        df['B_H Mean']     = np.log10( df['B_H Mean'] )
-        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
-
-    # Determine whether the fit uses squares of some variables 
-    if run_info['addsquares'] is not None:
-        for name in run_info['addsquares']:
-            df[name + ' Squared'] = df[name] * df[name]
-
     # Split data into training and testing sets.  With random_state set to an
     # integer, its repeatable.
     train_set, test_set = train_test_split(df, random_state=random_state, 
@@ -404,10 +422,6 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         import sys
         sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
 
-    if flag_info['Kp'] is not None and flag_info['|B| threshold'] is not None: 
-        import sys
-        sys.exit('Error: Either KP or BTHRESHOLD is not None, but not both.')
-
     # Loop through all the years and the stations to combine all the data into
     # a single dataframe
     
@@ -446,25 +460,6 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         import sys
         sys.exit('Error: No data found in get_data_all.')
 
-    if flag_info['uselogy']:
-        df['B_H Mean']     = np.log10( df['B_H Mean'] )
-        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
-
-    # Determine whether the fit uses squares of some variables 
-    if flag_info['addsquares'] is not None:
-        for name in flag_info['addsquares']:
-            df[name + ' Squared'] = df[name] * df[name]
-            
-    # Determine whether |B| threshold is specified.  If so, drop rows with 
-    # |B| less than that specified.  Threshold is num. of std deviations.
-    # e.g., Drop everything below num. std deviations above the mean.
-    # We use this to isolate rows with strong storm conditions
-    if flag_info['|B| threshold'] is not None:
-        mean = df['|B| Mean'].mean()
-        std  = df['|B| Mean'].std()
-        num  = flag_info['|B| threshold']
-        df = df.drop(df[df['|B| Mean'] < (mean + std*num)].index)
-        
     # Split data into training and testing sets.  With random_state set to an
     # integer, its repeatable.
     train_set, test_set = train_test_split(df, random_state=random_state, 
@@ -543,6 +538,7 @@ def get_prefix(run_info):
     if run_info['standardize']: prefix = prefix + 'Standardized '
     if run_info['includedXdt']: prefix = prefix + 'dXdt '
     if run_info['uselog']:      prefix = prefix + 'Log All '
+    
     if run_info['uselogy']:    
         if run_info['usebh']: 
             prefix = prefix + 'LogBH ' 
@@ -553,11 +549,11 @@ def get_prefix(run_info):
             prefix = prefix + 'BH ' 
         else:
             prefix = prefix + 'dBHdt '
-    if run_info['addsquares'] is not None:    prefix = prefix + 'AddSqs '
-    if run_info['Kp'] is not None:            
-        prefix = prefix + 'Kp' + str(run_info['Kp']) + ' '   
-    if run_info['|B| threshold'] is not None: 
-        prefix = prefix + 'BThres' + str(run_info['|B| threshold']) + ' '   
+            
+    if run_info['Kp Lower'] is not None:            
+        prefix = prefix + r'Kp$\geq$' + str(run_info['Kp Lower']) + ' '   
+    if run_info['Kp Upper'] is not None:            
+        prefix = prefix + r'Kp$\leq$' + str(run_info['Kp Upper']) + ' '   
     
     return prefix
  
@@ -577,9 +573,11 @@ def get_suffix( run_info, base='Autogluon' ):
 
     # Used to determine directory names
     suffix = base
+    
     if run_info['standardize']: suffix = suffix + '_Standardize'
     if run_info['includedXdt']: suffix = suffix + '_dXdt '
     if run_info['uselog']:      suffix = suffix + '_LogAll'
+    
     if run_info['uselogy']:    
         if run_info['usebh']: 
             suffix = suffix + '_LogBH'
@@ -591,11 +589,10 @@ def get_suffix( run_info, base='Autogluon' ):
         else:
             suffix = suffix + '_dBHdt'
 
-    if run_info['addsquares'] is not None:    suffix = suffix + '_AddSqs'
-    if run_info['Kp'] is not None:            
-        suffix = suffix + '_Kp' + str(run_info['Kp'])  
-    if run_info['|B| threshold'] is not None: 
-        suffix = suffix + '_B_Thres' + str(run_info['|B| threshold']) 
+    if run_info['Kp Lower'] is not None:            
+        suffix = suffix + '_KpLower' + str(run_info['Kp Lower'])  
+    if run_info['Kp Upper'] is not None:            
+        suffix = suffix + '_KpUpper' + str(run_info['Kp Upper'])  
 
     return suffix
 

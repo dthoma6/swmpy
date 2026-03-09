@@ -31,20 +31,11 @@ if __name__ == "__main__":
    
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
-    KP = None
+    KPLOWER = 7.0
     
-    # |B| threshold, we keep on data with "|B| mean" (OMNI) above the threshold
-    # defined by number of std deviations.  Drop data with less than
-    # mean + num. of std deviations. Use None, if we want to keep all data
-    #
-    # Didn't work as well as Kp cut-off
-    #
-    BTHRESHOLD = None  
-
-    # Include list of variables that we want to square in the fit
-    # e.g., we want '|V| Mean' and '|V| Mean Square' in the fit, add
-    # '|V| Mean' to list.  Otherwise, set to None
-    ADDSQUARES = None
+    # We only use data with a KP below this.
+    # Use None, if we want to keep all data
+    KPUPPER = None
 
     # Whether data is standardized, data ==> data = (data-mean)/(std dev)
     STANDARDIZE = True
@@ -82,9 +73,8 @@ if __name__ == "__main__":
             "year": year,
             "number": number,
             "distance": distance,
-            "Kp": KP,
-            "|B| threshold": BTHRESHOLD,
-            "addsquares": None
+            "Kp Lower": KPLOWER,
+            "Kp Upper": KPUPPER,
             }
         
         return run_info
