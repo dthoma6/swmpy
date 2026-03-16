@@ -208,7 +208,7 @@ def autogluon_residuals_predict_plot( file_info, run_info, full=False ):
     for i, model in enumerate( models ):
         print( 'Residuals vs Predict plot: ', model )
         y_pred = predictor.predict(data.drop(columns=[dependent]), model=model)
-        residuals = y_pred - y_data
+        residuals = y_data - y_pred
      
         axes[i].scatter(y_pred, residuals, s=3)
         axes[i].set_ylabel("Residuals")
@@ -297,7 +297,7 @@ def autogluon_qq_plot( file_info, run_info, full=False):
     for i, model in enumerate( models ):
         print( 'QQ plot: ', model )
         y_pred = predictor.predict(data.drop(columns=[dependent]), model=model)
-        residuals = y_pred - y_data
+        residuals = y_data - y_pred
      
         sm.qqplot(residuals, line='s', ax=axes[i])
         axes[i].set_title( model )
