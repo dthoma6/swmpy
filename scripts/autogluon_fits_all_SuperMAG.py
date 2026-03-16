@@ -31,17 +31,17 @@ if __name__ == "__main__":
     
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
-    KPLOWER = 7.0
+    KPLOWER = 3.0
     
     # We only use data with a KP below this.
     # Use None, if we want to keep all data
-    KPUPPER = None
+    KPUPPER = 5.0
     
     # Whether data is standardized, data ==> data = (data-mean)/(std dev)
     STANDARDIZE = False
 
     # Whether to generate fits
-    FITS = False
+    FITS = True
     
     # Whether to generate plots
     PLOTS = True
