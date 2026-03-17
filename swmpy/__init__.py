@@ -24,7 +24,7 @@ from .scatter_matrix import scatter_matrix
 from .distributions import supermag_distribution, omni_distribution
 
 from .utils import stations_list, get_data_one, get_data_all, \
-    set_plot_rcParams, get_prefix, get_suffix, pearson_cc, nse, calc_dXdt
+    set_plot_rcParams, get_prefix, get_suffix, nse
     
 from .autogluon import autogluon_permutation_plot, autogluon_qq_plot, \
     autogluon_residuals_predict_plot, autogluon_predict_measured_plot, \

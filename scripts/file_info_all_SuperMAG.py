@@ -30,11 +30,11 @@ file_info = {
         "info": "file",
         "SuperMAG UserID": "USERNAME",
         "years": [2023,2024,2025,],
-        "distances": [None, 10, 8, 6, 4, 2, 0], #[None,]
-        "numbers": [5, 10, 15, 20, 25, 30,], #[5,],
-        "SuperMAG Directory": join(data_dir, "SuperMAG_All"),
+        "distances": [None,], #[None, 10, 8, 6, 4, 2, 0], 
+        "numbers":  [5,], #[5, 10, 15, 20, 25, 30,],
+        "SuperMAG Directory": join(data_dir, "SuperMAG"),
         "OMNI Directory": join(data_dir, "OMNI"),
         "Kp Directory": join(data_dir, "Kp"),
-        "Fit Directory": join(data_dir, "Fit_SuperMAG_All"),
+        "Fit Directory": join(data_dir, "Fit_All"),
 }
     

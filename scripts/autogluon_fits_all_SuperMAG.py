@@ -10,32 +10,17 @@ from file_info_all_SuperMAG import file_info
 
 if __name__ == "__main__":
     
-    # Whether to fit B_H (True) or dB_H/dt (False) as dependent variable
-    USEBH = True
-    
     # Use logs of variables for fit
-    # USELOG True, log of all independent and dependent variables
     # USELOGY True, log of dependent variable only
-    USELOG = False
     USELOGY = True 
-    if USELOG and USELOGY: 
-        import sys
-        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
-    
-    # Include dB/dt, dV/dt, dn/dt in fit
-    # Since dX/dt variables are positive and negative, can't use with USELOG
-    INCLUDEDXDT = False
-    if USELOG and INCLUDEDXDT: 
-        import sys
-        sys.exit('Error: Either USELOG True or INCLUDEDXDT True, but not both.')
     
     # Kp threshold, we keep only data with Kp above this.
     # Use None, if we want to keep all data
-    KPLOWER = 3.0
+    KPLOWER = 7.0
     
     # We only use data with a KP below this.
     # Use None, if we want to keep all data
-    KPUPPER = 5.0
+    KPUPPER = None
     
     # Whether data is standardized, data ==> data = (data-mean)/(std dev)
     STANDARDIZE = False
@@ -61,11 +46,8 @@ if __name__ == "__main__":
 
         run_info = {
             "info": 'all',  # all years, all stations
-            "usebh": USEBH,
-            "uselog": USELOG,
             "uselogy": USELOGY,
             "standardize": STANDARDIZE,
-            "includedXdt": INCLUDEDXDT,
             "number": number,
             "distance": distance,
             "Kp Lower": KPLOWER,

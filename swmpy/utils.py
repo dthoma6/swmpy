@@ -53,9 +53,6 @@ def _remove_correlated_omni( df ):
 
     # Drop other variables that are highly correlated, see scatter_matrix.py
 
-    # Vx correlated with |V|
-    df = df.drop(['Vx Velocity, km/s, GSE Mean'], axis=1)
-   
     # Bx and By correlated
     df = df.drop(['By, nT (GSE) Mean'], axis=1)
 
@@ -90,86 +87,6 @@ def _remove_unused( df ):
 
     return df
  
-def _remove_pos_neg( df ):
-    """Drops variables from dataframe that are both positive and negative,
-    we can't use them when we fit with the log10(variables).  
-    
-    Inputs:
-        df = dataframe that includes OMNI and SuperMAG data
-        
-    Outputs:
-        dataframe without the pos/neg columns
-    """
-    
-    # Drop these variables  
-    df = df.drop(['Bx, nT (GSE, GSM) Mean'], axis=1)
-    df = df.drop(['Bz, nT (GSE) Mean'], axis=1)
-    df = df.drop(['Vy Velocity, km/s, GSE Mean'], axis=1)
-    df = df.drop(['Vz Velocity, km/s, GSE Mean'], axis=1)
-
-    # 'dB_H/dt Mean' is pos/neg, but we want to keep. So take absolute value
-    df['dB_H/dt Mean'] = np.abs(df['dB_H/dt Mean'])
-
-    return df
- 
-def _remove_dXdt( df ):
-    """Drops dX/dt variables from dataframe when we won't use them in fits.  
-    
-    Inputs:
-        df = dataframe that includes OMNI and SuperMAG data
-        
-    Outputs:
-        dataframe without the dXdt columns
-    """
-    
-    # Drop these variables  
-    df = df.drop(['d|B|/dt Mean'], axis=1)
-    df = df.drop(['d|V|/dt Mean'], axis=1)
-    df = df.drop(['dn/dt Mean'], axis=1)
-
-    return df
- 
-def _remove_zeros_add_logs( df, uselog, includedXdt ):
-    """Drops variables that equal 0, and if uselog is true, take the log of 
-    the OMNI variables.  
-    
-    Inputs:
-        df = dataframe that includes OMNI and SuperMAG data
-        
-        uselog = whether to use log10(variables) in fit
-        
-        includedXdt = whether to include time derivative of variables
-        
-    Outputs:
-        dataframe without the 0 values
-    """
-    
-    if uselog:
-        names = ['|B| Mean', '|V| Mean', 'Proton Density, n/cc Mean', 
-                 'B_H Mean', 'dB_H/dt Mean']
-        
-        # Drop rows with zero values so we can take log of them
-        for name in names:
-            df = df.drop(df[df[name] == 0].index)
-            df[name] = np.log10(df[name])
-    else:
-        if includedXdt:
-            names = ['|B| Mean', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
-                    '|V| Mean',  'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
-                    'Proton Density, n/cc Mean', 'd|B|/dt Mean', 'd|V|/dt Mean', 
-                    'dn/dt Mean', 'B_H Mean', 'dB_H/dt Mean']
-        else:
-            names = ['|B| Mean', 'Bx, nT (GSE, GSM) Mean', 'Bz, nT (GSE) Mean',
-                    '|V| Mean',  'Vy Velocity, km/s, GSE Mean', 'Vz Velocity, km/s, GSE Mean',
-                    'Proton Density, n/cc Mean', 'B_H Mean', 'dB_H/dt Mean']
-
-        # Drop rows with zero values (I believe they're bad data, and 
-        # we have a small number of them)
-        for name in names:
-            df = df.drop(df[df[name] == 0].index)
-
-    return df
-
 def _remove_kp_upper( df, kp ):
     """Drops rows that have a Kp > kp  
     
@@ -212,7 +129,7 @@ def _merge_files( file_info, run_info ):
         file_info = information, such as paths to directories
 
         run_info = information on flag settings, etc. for this run.  Includes
-            year, number, distance, station, uselog, etc.
+            year, number, distance, station, uselogy, etc.
         
     Outputs:
         dataframe of merged data
@@ -229,10 +146,7 @@ def _merge_files( file_info, run_info ):
     station  = run_info['station']
     kpupper  = run_info['Kp Upper']
     kplower  = run_info['Kp Lower']
-    
-    uselog      = run_info['uselog']
-    uselogy     = run_info['uselogy']
-    includedXdt = run_info['includedXdt']
+    uselogy  = run_info['uselogy']
                  
     # Get OMNI, SuperMAG, and Kp dataframes and merge them.  Filenames depend 
     # upon run_info parameters
@@ -265,44 +179,10 @@ def _merge_files( file_info, run_info ):
 
     # Drop highly-correlated OMNI variables
     df = _remove_correlated_omni(df)
-    
-    # Special test for uselog and includedXdt
-    # Can't have both true because dXdt variables are positive and negative
-    # so we can't take logs of them.
-    if uselog and includedXdt: 
-        import sys
-        sys.exit('Error: Either uselog True or includedXdt True, but not both.')
-    
-    # In next few if-thens, handle taking log10(variables).  They handle
-    # special cases of zero values and variables that can be negative
-    
-    # If we fit to log10(variables) (uselog is True), drop OMNI variables that 
-    # are positive and negative. We can't take the log of them.  We also take
-    # absolute value of dB_H/dt Mean (SuperMAG response variable).
-    if uselog:
-        df = _remove_pos_neg( df ) 
         
-    # If we want log10 of response variable only, we take the absolute value
-    # if dB_H/dt Mean, which can be positive or negative
+    # If we want log of response variable do it here
     if uselogy:
-        df['dB_H/dt Mean'] = np.abs(df['dB_H/dt Mean'])
-   
-    # if includedXdt is False or uselog is True drop these variables
-    # We're either not using them (includedXdt False) or they are positive and 
-    # negative and we can't take the log of them (uselog is True)
-    # Note, don't need to check uselog here, since uselog can only be true
-    # if includedXdt is false.
-    if not includedXdt:
-        df = _remove_dXdt( df )
-
-    # Drop rows with 0 values and, if uselog is true, take log10(variables)
-    # We have a small number of 0 values, and they appear to be bad data
-    df = _remove_zeros_add_logs( df, uselog, includedXdt )
-    
-    # If we only want log of response variable do it here
-    if run_info['uselogy']:
         df['B_H Mean']     = np.log10( df['B_H Mean'] )
-        df['dB_H/dt Mean'] = np.log10( df['dB_H/dt Mean'] )
 
     # if kpupper != None, drop rows with Kp values above threshold
     # if kplower != None, drop rows with Kp values below threshold
@@ -311,13 +191,12 @@ def _merge_files( file_info, run_info ):
     if kplower is not None: 
         df = _remove_kp_lower( df, kplower )
     
-    # Add circular response for mlt. Not done earlier in case uselog is true.  
-    # We don't want the log of the sine and cosine.
+    # Add circular response for mlt. 
     df['cosmlt'] = np.cos( df.mlt*np.pi/180. )
     df['sinmlt'] = np.sin( df.mlt*np.pi/180. )
     
     # Add circular response for mcolat if we use get_data_all. 
-    # aka run_info['info'] == 'all'. Not done earlier in case uselog is true.  
+    # aka run_info['info'] == 'all'. 
     if run_info['info'] == 'all':
         df['cosmcolat'] = np.cos( df.mcolat*np.pi/180. )
         df['sinmcolat'] = np.sin( df.mcolat*np.pi/180. )
@@ -337,7 +216,7 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
         file_info = information, such as paths to directories
 
         run_info = information on flag settings, etc. for this run.  Includes
-            year, number, distance, station, uselog, etc.
+            year, number, distance, station, uselogy, etc.
             
         random_state = train_test_split parameter, controls the shuffling applied 
             to the data before applying the split. Pass an int for reproducible 
@@ -354,10 +233,6 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
-    if run_info['uselog'] and run_info['uselogy']: 
-        import sys
-        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
-
     # Merge the SuperMAG and OMNI files into a single dataframe
     df = _merge_files( file_info, run_info ) 
         
@@ -400,7 +275,7 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
         file_info = information, such as paths to directories
 
         flag_info = information on flag settings, etc. for this run.  Includes
-            number, distance, uselog, etc.  This is distinct from the run_info
+            number, distance, uselogy, etc.  This is distinct from the run_info
             in get_data.  flag_info does not have the year or the station.
             
         random_state = train_test_split parameter, controls the shuffling applied 
@@ -418,10 +293,6 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
-    if flag_info['uselog'] and flag_info['uselogy']: 
-        import sys
-        sys.exit('Error: Either USELOG True or USELOGY True, but not both.')
-
     # Loop through all the years and the stations to combine all the data into
     # a single dataframe
     
@@ -525,7 +396,7 @@ def get_prefix(run_info):
     
     Inputs:
         run_info = information on flag settings, etc. for this run.  Includes
-            year, number, distance, station, uselog, etc.
+            year, number, distance, station, uselogy, etc.
         
      Outputs:
         prefix = a string
@@ -536,20 +407,12 @@ def get_prefix(run_info):
     prefix = ''
     
     if run_info['standardize']: prefix = prefix + 'Standardized '
-    if run_info['includedXdt']: prefix = prefix + 'dXdt '
-    if run_info['uselog']:      prefix = prefix + 'Log All '
     
     if run_info['uselogy']:    
-        if run_info['usebh']: 
-            prefix = prefix + 'LogBH ' 
-        else:
-            prefix = prefix + 'LogdBHdt '
+        prefix = prefix + 'LogBH ' 
     else:
-        if run_info['usebh']: 
-            prefix = prefix + 'BH ' 
-        else:
-            prefix = prefix + 'dBHdt '
-            
+        prefix = prefix + 'BH ' 
+             
     if run_info['Kp Lower'] is not None:            
         prefix = prefix + r'Kp$\geq$' + str(run_info['Kp Lower']) + ' '   
     if run_info['Kp Upper'] is not None:            
@@ -563,7 +426,7 @@ def get_suffix( run_info, base='Autogluon' ):
     
     Inputs:
         run_info = information on flag settings, etc. for this run.  Includes
-            year, number, distance, station, uselog, etc.
+            year, number, distance, station, uselogy, etc.
         
         base = base of directory name
         
@@ -575,19 +438,11 @@ def get_suffix( run_info, base='Autogluon' ):
     suffix = base
     
     if run_info['standardize']: suffix = suffix + '_Standardize'
-    if run_info['includedXdt']: suffix = suffix + '_dXdt '
-    if run_info['uselog']:      suffix = suffix + '_LogAll'
     
     if run_info['uselogy']:    
-        if run_info['usebh']: 
-            suffix = suffix + '_LogBH'
-        else:
-            suffix = suffix + '_LogdBHdt'
+        suffix = suffix + '_LogBH'
     else:
-        if run_info['usebh']: 
-            suffix = suffix + '_BH'
-        else:
-            suffix = suffix + '_dBHdt'
+        suffix = suffix + '_BH'
 
     if run_info['Kp Lower'] is not None:            
         suffix = suffix + '_KpLower' + str(run_info['Kp Lower'])  
@@ -620,27 +475,6 @@ def stations_list( year, smdirectory ):
     
     return stations
 
-def pearson_cc( x, y ):
-    """Calculates the Pearson correlation coefficient for x and y
-    
-    Inputs:
-        x = numpy array of x values
-        
-        y = numpy array of y values
-               
-     Outputs:
-        pcc = Pearson correlation coefficient 
-    """
-    xmean = np.mean(x)
-    ymean = np.mean(y)
-    
-    top = np.sum((x-xmean)*(y-ymean))
-    bot = np.sqrt( np.sum((x-xmean)**2) )*np.sqrt( np.sum((y-ymean)**2) )
-    
-    pcc = top/bot
-    
-    return pcc
-
 def nse(test, predict):
     """Calculates Nash Sutcliffe efficency (aka prediction efficiency)
     
@@ -656,59 +490,6 @@ def nse(test, predict):
     eff = 1 - (np.sum((test - predict) ** 2) / np.sum((test - np.mean(test)) ** 2))
 
     return eff
-
-@njit
-def calc_dXdt(X, t):
-    """ Subroutine that allows numba accelleration. It calculates time derivative 
-    of X (e.g. data from SuperMAG or OMNI file).
-    
-    Inputs:
-        X = numpy array with variable for which we want the time derivative
-        
-        t = numpy array with time from file (tval)
-                               
-    Outputs:
-        dXdt = numpy array with time derivative of X with respect to t
-    """
-
-    nX = len(X)
-    nt = len(t)
-    assert nX == nt 
-    
-    # Create array to put dXdt into
-    dXdt = np.full( nX, np.nan, dtype=float )
-    
-    # Use stencils to calculate derivatives.
-    # We may have unequal intervals, so we must use the correct stencils
-    #
-    # Singh, Ashok K., and B. S. Bhadauria. "Finite difference formulae for 
-    # unequal sub-intervals using Lagrange’s interpolation formula." Int. J. 
-    # Math. Anal 3.17 (2009): 815.
-    
-    for i in range(nX):
-        if i > 0 and i < nX-1: # in interior of array
-            h1 = t[i]   - t[i-1]
-            h2 = t[i+1] - t[i]
-            f0 = X[i-1]
-            f1 = X[i]
-            f2 = X[i+1]
-            dXdt[i] = - h2/h1/(h1+h2)*f0 - (h1-h2)/h1/h2*f1 + h1/h2/(h1+h2)*f2
-        elif i == 0: # at beginning of array
-            h1 = t[i+1] - t[i]
-            h2 = t[i+2] - t[i+1]
-            f0 = X[i]
-            f1 = X[i+1]
-            f2 = X[i+2]
-            dXdt[i] = - h1/h2/(h1+h2)*f2 + (h1+h2)/h1/h2*f1 - (2*h1+h2)/h1/(h1+h2)*f0        
-        else: # i == nX-1: at end of array
-            h1 = t[i-1] - t[i-2]
-            h2 = t[i]   - t[i-1]
-            f0 = X[i-2]
-            f1 = X[i-1]
-            f2 = X[i]
-            dXdt[i] =   h2/h1/(h1+h2)*f0 - (h1+h2)/h1/h2*f1 + (2*h2+h1)/h2/(h1+h2)*f2   
-    
-    return dXdt
 
 
 if __name__ == "__main__":
