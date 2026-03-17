@@ -5,12 +5,8 @@ Created on 9 Dec 2025
 
 @author: Dean Thomas
 """
-from os.path import join
-import pandas as pd
-import matplotlib.pyplot as plt
-
 import swmpy as swm
-from file_info import file_info
+from file_info_all_SuperMAG import file_info
 
 if __name__ == "__main__":
 
@@ -18,13 +14,13 @@ if __name__ == "__main__":
     PARSE = False
 
     # whether to generate OMNI stats
-    STATS = False
+    STATS = True
     
     # whether to generate raw OMNI files
     RAW = True
     
     # whether to generate OMNI plots
-    PLOTS = False
+    PLOTS = True
 
     ############## read OMNI data
 

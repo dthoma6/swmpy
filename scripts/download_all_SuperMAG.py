@@ -22,7 +22,7 @@ if __name__ == "__main__":
     STATS = False
     
     # Whether to generate raw SuperMAG files
-    RAW = True
+    RAW = False
     
     # Whether to plot SuperMAG statistics
     PLOTSTATS = False
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     PLOTB = False    
     
     # Whether to plot world maps of SuperMAG sites
-    PLOTWORLD = False
+    PLOTWORLD = True
 
     ############## download SuperMAG
     

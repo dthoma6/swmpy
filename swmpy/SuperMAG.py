@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timezone
 
-from swmpy.utils import stations_list, set_plot_rcParams, calc_dXdt
+from swmpy.utils import stations_list, set_plot_rcParams
 import swmpy.supermag_api as sm
 
 # SuperMAG data description from: 
@@ -314,7 +314,8 @@ def supermag_stats(info, year, number):
         # Get magnetic field data for station
         N_nez = np.array( [temp['nez'] for temp in df.N] )
         E_nez = np.array( [temp['nez'] for temp in df.E] )
-        # Z_nez = np.array( [temp['nez'] for temp in df.Z] )
+        Z_nez = np.array( [temp['nez'] for temp in df.Z] )
+        B_mag = np.sqrt( N_nez**2 + E_nez**2 + Z_nez**2 )
         B_H   = np.sqrt( N_nez**2 + E_nez**2 )
         
         tval = df.tval.to_numpy()
@@ -335,7 +336,6 @@ def supermag_stats(info, year, number):
         glat_df    = []
         mlt_df     = []
         mcolat_df  = []
-        dBHdt_mean = []
         
         maxidx = len(B_H)
         
@@ -384,7 +384,8 @@ def supermag_stats(info, year, number):
                         if tval[j+startidx] <= enddate:
                             B_H_tmp[j]   = B_H[j+startidx]
                             tval_tmp[j]  = tval[j+startidx]
-                            cnt_tmp      += 1
+                            # To match dataavail in supermag_plots, only count if B_mag not nan
+                            if not np.isnan( B_mag[j+startidx] ): cnt_tmp += 1
                         else:
                             cnt = j
                             break
@@ -402,11 +403,6 @@ def supermag_stats(info, year, number):
                 glat_df.append( glat[startidx] )   
                 mlt_df.append( mlt[startidx] )    
                 mcolat_df.append( mcolat[startidx] ) 
-                
-                # Calculate time derivatives of BH
-                dBHdt = calc_dXdt(B_H_tmp, tval_tmp)
-                dBHdt_mean.append( np.nanmean(dBHdt) )
-
             
             # Update startdate for next loop
             # It's one minute (60 seconds) past last enddate
@@ -420,7 +416,6 @@ def supermag_stats(info, year, number):
         statsdf['tval']        = tval_mean
         statsdf['Datetime']    = dval_mean
         statsdf['B_H Mean']    = B_H_mean
-        statsdf['dB_H/dt Mean']= dBHdt_mean
         statsdf['Sample Size'] = cnt_mean
         statsdf['glon']        = glon_df
         statsdf['glat']        = glat_df
@@ -460,7 +455,8 @@ def supermag_raw(info, year):
         # Get magnetic field data for station
         N_nez = np.array( [temp['nez'] for temp in df.N] )
         E_nez = np.array( [temp['nez'] for temp in df.E] )
-        # Z_nez = np.array( [temp['nez'] for temp in df.Z] )
+        Z_nez = np.array( [temp['nez'] for temp in df.Z] )
+        B_mag = np.sqrt( N_nez**2 + E_nez**2 + Z_nez**2 )
         B_H   = np.sqrt( N_nez**2 + E_nez**2 )
         
         tval = df.tval.to_numpy()
@@ -471,13 +467,18 @@ def supermag_raw(info, year):
         mlt    = df.mlt.to_numpy()
         mcolat = df.mcolat.to_numpy()
         
-        dBHdt = calc_dXdt(B_H, tval)
-        
         statsdf = pd.DataFrame( ) 
+        
+        # To match dataavail in superemag_plots, only count if B_mag is not nan
+        dataavail = np.full(len(tval), np.nan, dtype=float)    
+        for i in range(len(B_mag)): 
+            if not np.isnan( B_mag[i] ): 
+                dataavail[i] = 1
+        statsdf['Sample Size'] = dataavail
+
         statsdf['tval']        = tval
         statsdf['Datetime']    = dval
         statsdf['B_H Mean']    = B_H
-        statsdf['dB_H/dt Mean']= dBHdt
         statsdf['Sample Size'] = np.ones( len(tval) )
         statsdf['glon']        = glon
         statsdf['glat']        = glat
@@ -532,7 +533,6 @@ def supermag_plots(info, year, number):
         # dataavail is number+2 when a point is non-nan, and nan otherwise
         #
         # Plot along side cnt_std below to see if they match up.
-        B_H = statsdf['B_H Mean']
         dataavail = np.full(len(B_mag), np.nan, dtype=float)    
         for i in range(len(B_mag)): 
             if not np.isnan( B_mag[i] ): 
@@ -540,19 +540,16 @@ def supermag_plots(info, year, number):
                 
         # Plot the results for each station
         set_plot_rcParams( fontsize=5 )
-        fig, ax = plt.subplots(3, sharex=True)
+        fig, ax = plt.subplots(2, sharex=True)
         ax[0].scatter( statsdf['Datetime'], statsdf['B_H Mean'], 
                       label=r'$B_H$ Mean', s=3 )
-        ax[1].scatter( statsdf['Datetime'], statsdf['dB_H/dt Mean'], 
-                      label=r'$dB_{H}/dt$ Mean', s=3 )
-        ax[2].scatter( statsdf['Datetime'], statsdf['Sample Size'], 
+        ax[1].scatter( statsdf['Datetime'], statsdf['Sample Size'], 
                       label=r'Number of Samples', s=3 )
-        ax[2].scatter( dval    , dataavail, label=r'Data Available', s=3 )
+        ax[1].scatter( dval    , dataavail, label=r'Data Available', s=3 )
         ax[0].set_ylabel(r'$B_H$ Mean')
-        ax[1].set_ylabel(r'$dB_{H}/dt$ Mean')
-        ax[2].set_ylabel(r'Sample Size')
-        ax[2].legend()
-        ax[2].set_xlabel("Date")
+        ax[1].set_ylabel(r'Sample Size')
+        ax[1].legend()
+        ax[1].set_xlabel("Date")
         fig.suptitle(station + ' ' + str(number) + 'min '+ str(year))
         plt.show()
         file = station + '-stats-' + str(number) + 'min-' + str(year) + '.png'

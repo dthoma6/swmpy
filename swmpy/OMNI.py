@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from os.path import join, basename, dirname
 import fortranformat as ff
 
-from swmpy.utils import set_plot_rcParams, calc_dXdt
+from swmpy.utils import set_plot_rcParams
 
 # Parses OMNI solar wind data and creates pickle file with the data
 #
@@ -338,28 +338,16 @@ def omni_stats(info, year, number, distance):
         omnidf = omnidf.sort_values(by=['tval'])
         omnidf = omnidf.reset_index()
         
-    # Get the magnitude of vectors for stats
-    omnidf['B_mag'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
-                              omnidf['By, nT (GSE)'] **2 + 
-                              omnidf['Bz, nT (GSE)']**2 )
-    omnidf['V_mag'] = np.sqrt( omnidf['Vx Velocity, km/s, GSE']**2 + 
-                              omnidf['Vy Velocity, km/s, GSE']**2 + 
-                              omnidf['Vz Velocity, km/s, GSE'] **2 )
-    
     # Get tval values. Useful below.
     tval = omnidf['tval'].values
     
     # Create lists to store stats in
-    B_mag_mean = []
-    
     Bx_GSE_GSM_mean = []
     By_GSE_mean = []
     Bz_GSE_mean = []
     
     By_GSM_mean = []
     Bz_GSM_mean = []
-    
-    V_mag_mean = []
     
     Vx_GSE_mean = []
     Vy_GSE_mean = []
@@ -378,10 +366,6 @@ def omni_stats(info, year, number, distance):
     tval_mean  = []
     date_mean  = []
     cnt_mean   = []
-    
-    dBdt_mean  = []
-    dVdt_mean  = []
-    dndt_mean  = []
     
     maxidx = omnidf.shape[0]
     
@@ -416,13 +400,11 @@ def omni_stats(info, year, number, distance):
         cnt = number
         
         # Arrays to temporarily store values for calculating stats
-        B_mag_tmp      = np.full( number, np.nan, dtype=float )
         Bx_GSE_GSM_tmp = np.full( number, np.nan, dtype=float )
         By_GSE_tmp     = np.full( number, np.nan, dtype=float )
         Bz_GSE_tmp     = np.full( number, np.nan, dtype=float )
         By_GSM_tmp     = np.full( number, np.nan, dtype=float )
         Bz_GSM_tmp     = np.full( number, np.nan, dtype=float )
-        V_mag_tmp      = np.full( number, np.nan, dtype=float )
         Vx_GSE_tmp     = np.full( number, np.nan, dtype=float )
         Vy_GSE_tmp     = np.full( number, np.nan, dtype=float )
         Vz_GSE_tmp     = np.full( number, np.nan, dtype=float )
@@ -450,14 +432,12 @@ def omni_stats(info, year, number, distance):
                     # Make sure we don't run past the enddate.
                     # If this happens, some time steps were skipped in the SuperMAG data
                     if tval[j+startidx] <= enddate:
-                        B_mag_tmp[j]      = omnidf['B_mag'][j+startidx]
                         Bx_GSE_GSM_tmp[j] = omnidf['Bx, nT (GSE, GSM)'][j+startidx]
                         By_GSE_tmp[j]     = omnidf['By, nT (GSE)'][j+startidx]
                         Bz_GSE_tmp[j]     = omnidf['Bz, nT (GSE)'][j+startidx]
                         By_GSM_tmp[j]     = omnidf['By, nT (GSM)'][j+startidx]
                         Bz_GSM_tmp[j]     = omnidf['Bz, nT (GSM)'][j+startidx]
                         
-                        V_mag_tmp[j]      = omnidf['V_mag'][j+startidx]
                         Vx_GSE_tmp[j]     = omnidf['Vx Velocity, km/s, GSE'][j+startidx]
                         Vy_GSE_tmp[j]     = omnidf['Vy Velocity, km/s, GSE'][j+startidx]
                         Vz_GSE_tmp[j]     = omnidf['Vz Velocity, km/s, GSE'][j+startidx]
@@ -474,7 +454,12 @@ def omni_stats(info, year, number, distance):
                         Mach_tmp[j]   = omnidf['Magnetosonic mach number'][j+startidx]
                         
                         tval_tmp[j]   = omnidf['tval'][j+startidx]
-                        cnt_tmp        += 1
+                        
+                        # To match dataavail in omni_plots, only count if B_mag not nan
+                        B_mag         = np.sqrt( omnidf['Bx, nT (GSE, GSM)'][j+startidx]**2 + 
+                                                  omnidf['By, nT (GSE)'][j+startidx]**2 + 
+                                                  omnidf['Bz, nT (GSE)'][j+startidx]**2 )
+                        if not np.isnan( B_mag ): cnt_tmp += 1
                     else:
                         cnt = j
                         break
@@ -486,16 +471,12 @@ def omni_stats(info, year, number, distance):
                
         # If we have enough points to determine mean, store stats
         if cnt_tmp > 0:
-            B_mag_mean.append( np.nanmean(B_mag_tmp) )
-           
             Bx_GSE_GSM_mean.append( np.nanmean(Bx_GSE_GSM_tmp) )
             By_GSE_mean.append( np.nanmean(By_GSE_tmp) )
             Bz_GSE_mean.append( np.nanmean(Bz_GSE_tmp) )
             
             By_GSM_mean.append( np.nanmean(By_GSM_tmp) )
             Bz_GSM_mean.append( np.nanmean(Bz_GSM_tmp) )
-            
-            V_mag_mean.append( np.nanmean(V_mag_tmp) )
             
             Vx_GSE_mean.append( np.nanmean(Vx_GSE_tmp) )
             Vy_GSE_mean.append( np.nanmean(Vy_GSE_tmp) )
@@ -514,16 +495,7 @@ def omni_stats(info, year, number, distance):
             tval_mean.append( startdate )
             date_mean.append( datetime.fromtimestamp(startdate, tz=timezone.utc) )
             cnt_mean.append( cnt_tmp )
-            
-            # Calculate time derivatives of |B|, |V|, and n
-            dBdt = calc_dXdt(B_mag_tmp, tval_tmp)
-            dVdt = calc_dXdt(V_mag_tmp, tval_tmp)
-            dndt = calc_dXdt(n_tmp, tval_tmp)
-            
-            dBdt_mean.append( np.nanmean(dBdt) )
-            dVdt_mean.append( np.nanmean(dVdt) )
-            dndt_mean.append( np.nanmean(dndt) )
-        
+                    
         # Update startdate for next loop
         # It's one minute (60 seconds) past last enddate
         startdate = enddate + 60
@@ -537,15 +509,11 @@ def omni_stats(info, year, number, distance):
     statsdf['Datetime']    = date_mean
     statsdf['Sample Size'] = cnt_mean
     
-    statsdf['|B| Mean'] = B_mag_mean 
-    
     statsdf['Bx, nT (GSE, GSM) Mean'] = Bx_GSE_GSM_mean 
     statsdf['By, nT (GSE) Mean']      = By_GSE_mean 
     statsdf['Bz, nT (GSE) Mean']      = Bz_GSE_mean 
     statsdf['By, nT (GSM) Mean']      = By_GSM_mean 
     statsdf['Bz, nT (GSM) Mean']      = Bz_GSM_mean 
-    
-    statsdf['|V| Mean'] = V_mag_mean 
     
     statsdf['Vx Velocity, km/s, GSE Mean'] = Vx_GSE_mean 
     statsdf['Vy Velocity, km/s, GSE Mean'] = Vy_GSE_mean 
@@ -561,10 +529,6 @@ def omni_stats(info, year, number, distance):
     # statsdf['Na/Np Ratio Mean']            = NaNp_mean 
     statsdf['Magnetosonic mach number Mean'] = Mach_mean 
     
-    statsdf['d|B|/dt Mean'] = dBdt_mean 
-    statsdf['d|V|/dt Mean'] = dVdt_mean 
-    statsdf['dn/dt Mean']   = dndt_mean 
-
     if distance is None:
         file = 'OMNI-stats-' + str(number) + 'min-' + str(year) + '.pkl' 
     else:
@@ -596,27 +560,23 @@ def omni_raw(info, year):
     # Remove lines with no data and get UNIX timestamp in ms
     omnidf = omni.dropna( subset=['Year', 'Day', 'Hour', 'Minute'] )
     omnidf['tval'] = omnidf['Datetime'].astype('int64') / 10**9
-            
-    # Get the magnitude of vectors for stats
-    omnidf['B_mag'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
-                              omnidf['By, nT (GSE)'] **2 + 
-                              omnidf['Bz, nT (GSE)']**2 )
-    omnidf['V_mag'] = np.sqrt( omnidf['Vx Velocity, km/s, GSE']**2 + 
-                              omnidf['Vy Velocity, km/s, GSE']**2 + 
-                              omnidf['Vz Velocity, km/s, GSE'] **2 )
-    
+                
     # Get tval values. Useful below.
     tval = omnidf['tval']
     dval = pd.to_datetime(omnidf['tval'], unit='s')
     
-    B_mag      = omnidf['B_mag']
     Bx_GSE_GSM = omnidf['Bx, nT (GSE, GSM)']
     By_GSE     = omnidf['By, nT (GSE)']
     Bz_GSE     = omnidf['Bz, nT (GSE)']
     By_GSM     = omnidf['By, nT (GSM)']
     Bz_GSM     = omnidf['Bz, nT (GSM)']
     
-    V_mag      = omnidf['V_mag']
+    # Get the magnitude of vectors
+    B_mag      = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
+                              omnidf['By, nT (GSE)'] **2 + 
+                              omnidf['Bz, nT (GSE)']**2 )
+
+    
     Vx_GSE     = omnidf['Vx Velocity, km/s, GSE']
     Vy_GSE     = omnidf['Vy Velocity, km/s, GSE']
     Vz_GSE     = omnidf['Vz Velocity, km/s, GSE']
@@ -632,26 +592,23 @@ def omni_raw(info, year):
     # NaNp   = omnidf['Na/Np Ratio']
     Mach   = omnidf['Magnetosonic mach number']
 
-    # Calculate dX/dt values
-    dBdt = calc_dXdt(B_mag.values, tval.values)
-    dVdt = calc_dXdt(V_mag.values, tval.values)
-    dndt = calc_dXdt(n.values, tval.values)
-
     # Store the raw data in a pickle file
     statsdf = pd.DataFrame( ) 
     statsdf['tval']        = tval
     statsdf['Datetime']    = dval
-    statsdf['Sample Size'] = np.ones( len(tval) )
-    
-    statsdf['|B| Mean'] = B_mag
+
+    # To match dataavail in omni_plots, only count if B_mag is not nan
+    dataavail = np.full(len(tval), np.nan, dtype=float)    
+    for i in range(len(B_mag)): 
+        if not np.isnan( B_mag[i] ): 
+            dataavail[i] = 1
+    statsdf['Sample Size'] = dataavail
     
     statsdf['Bx, nT (GSE, GSM) Mean'] = Bx_GSE_GSM
     statsdf['By, nT (GSE) Mean']      = By_GSE
     statsdf['Bz, nT (GSE) Mean']      = Bz_GSE
     statsdf['By, nT (GSM) Mean']      = By_GSM
     statsdf['Bz, nT (GSM) Mean']      = Bz_GSM
-    
-    statsdf['|V| Mean'] = V_mag
     
     statsdf['Vx Velocity, km/s, GSE Mean'] = Vx_GSE
     statsdf['Vy Velocity, km/s, GSE Mean'] = Vy_GSE
@@ -667,10 +624,6 @@ def omni_raw(info, year):
     # statsdf['Na/Np Ratio Mean']            = NaNp 
     statsdf['Magnetosonic mach number Mean'] = Mach 
     
-    statsdf['d|B|/dt Mean'] = dBdt 
-    statsdf['d|V|/dt Mean'] = dVdt 
-    statsdf['dn/dt Mean']   = dndt 
-
     file = 'OMNI-stats-None-' + str(year) + '.pkl' 
     statsdf.to_pickle( join(omnidirectory, file) )    
     return
@@ -705,11 +658,11 @@ def omni_plots(info, year, number, distance):
     omnidf = omni.dropna( subset=['Year', 'Day', 'Hour', 'Minute'] )
     omnidf['tval'] = omnidf['Datetime'].astype('int64') / 10**9
     
-    # Get the magnitude of vectors for stats
-    omnidf['B_mag'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
+    # Get the magnitude of vectors
+    omnidf['|B|'] = np.sqrt( omnidf['Bx, nT (GSE, GSM)']**2 + 
                               omnidf['By, nT (GSE)'] **2 + 
                               omnidf['Bz, nT (GSE)']**2 )
-    omnidf['V_mag'] = np.sqrt( omnidf['Vx Velocity, km/s, GSE']**2 + 
+    omnidf['|V|'] = np.sqrt( omnidf['Vx Velocity, km/s, GSE']**2 + 
                               omnidf['Vy Velocity, km/s, GSE']**2 + 
                               omnidf['Vz Velocity, km/s, GSE'] **2 )
 
@@ -727,26 +680,34 @@ def omni_plots(info, year, number, distance):
     # dataavail is number+2 when a point is non-nan, and nan otherwise
     #
     # Plot along side number of samples to see if they match up.
-    dataavail = np.full(len(omnidf['B_mag']), np.nan, dtype=float)    
-    for i in range(len(omnidf['B_mag'])): 
-        if not np.isnan( omnidf['B_mag'][i] ): 
+    dataavail = np.full(len(omnidf['|B|']), np.nan, dtype=float)    
+    for i in range(len(omnidf['|B|'])): 
+        if not np.isnan( omnidf['|B|'][i] ): 
             dataavail[i] = number+2
             
     # Plot some of the stats for quality control
     set_plot_rcParams( fontsize=5 )
     fig, ax = plt.subplots(3, sharex=True)
-    ax[0].scatter( statsdf['Datetime'], statsdf['|B| Mean'], 
-                  label=r'$|B|$ Mean', s=3 )
+    ax[0].scatter( statsdf['Datetime'], statsdf['Bx, nT (GSE, GSM) Mean'], 
+                  label=r'$B_x$ Mean', s=3 )
+    ax[0].scatter( statsdf['Datetime'], statsdf['By, nT (GSE) Mean'], 
+                  label=r'$B_y$ Mean', s=3 )
+    ax[0].scatter( statsdf['Datetime'], statsdf['Bz, nT (GSE) Mean'], 
+                  label=r'$B_z$ Mean', s=3 )
     ax[0].legend()
-    ax[1].scatter( statsdf['Datetime'], statsdf['|V| Mean'], 
-                  label=r'$|V|$ Mean', s=3 )
+    ax[1].scatter( statsdf['Datetime'], statsdf['Vx Velocity, km/s, GSE Mean'], 
+                  label=r'$V_x$ Mean', s=3 )
+    ax[1].scatter( statsdf['Datetime'], statsdf['Vy Velocity, km/s, GSE Mean'], 
+                  label=r'$V_y$ Mean', s=3 )
+    ax[1].scatter( statsdf['Datetime'], statsdf['Vz Velocity, km/s, GSE Mean'], 
+                  label=r'$V_z$ Mean', s=3 )
     ax[1].legend()
     ax[2].scatter( statsdf['Datetime'], statsdf['Sample Size'], 
                   label=r'Number. of Samples', s=3 )
     ax[2].scatter( omnidf['Datetime'], dataavail, 
                   label=r'Data Available', s=3 )
-    ax[0].set_ylabel(r'$|B|$ Mean')
-    ax[1].set_ylabel(r'$|V|$ Mean')
+    ax[0].set_ylabel(r'$B$ Mean (nT)')
+    ax[1].set_ylabel(r'$V$ Mean (nT)')
     ax[2].set_ylabel(r'Sample Size')
     ax[2].legend()
     ax[2].set_xlabel("Date")
@@ -757,33 +718,6 @@ def omni_plots(info, year, number, distance):
         fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
         file = 'OMNI-stats-' + str(distance) + 'Re-' + \
                     str(number) + 'min-' + str(year) + '.png'
-    plt.show()
-    fig.savefig( join(omnidirectory, file) )
-    
-    # Plot some of the stats for quality control
-    fig, ax = plt.subplots(3, sharex=True)
-    ax[0].scatter( statsdf['Datetime'], np.log10(statsdf['d|B|/dt Mean']), 
-                  label=r'$log_{10}(d|B|/dt$ Mean)', s=3 )
-    ax[0].legend()
-    ax[1].scatter( statsdf['Datetime'], np.log10(statsdf['d|V|/dt Mean']), 
-                  label=r'$log_{10}(d|V|/dt$ Mean)', s=3 )
-    ax[1].legend()
-    ax[2].scatter( statsdf['Datetime'], np.log10(statsdf['dn/dt Mean']), 
-                  label=r'$log_{10}(dn/dt$ Mean)', s=3 )
-    ax[2].legend()
-    ax[0].set_ylabel(r'$log_{10}((d|B|/dt)$ Mean')
-    ax[1].set_ylabel(r'$log_{10}(d|V|/dt)$ Mean')
-    ax[2].set_ylabel(r'$log_{10}(dn/dt)$ Mean')
-    ax[2].set_xlabel("Date")
-    
-    if distance is None:
-        fig.suptitle(str(number) + 'min '+ str(year))
-        file = 'OMNI-stats-dXdt-' + str(number) + 'min-' + str(year) + '.png'
-    else:
-        fig.suptitle(str(distance) + 'Re ' + str(number) + 'min '+ str(year))
-        file = 'OMNI-stats-dXdt-' + str(distance) + 'Re-' + \
-                    str(number) + 'min-' + str(year) + '.png'
-
     plt.show()
     fig.savefig( join(omnidirectory, file) )
 
