@@ -15,7 +15,7 @@ import swmpy as swm
 if __name__ == "__main__":
     
     # Directory for OMNI data
-    OMNIDIRECTORY = './OMNI/'
+    OMNIDIRECTORY = '/Volumes/PhysicsHD/swmpy/OMNI/'
     
     # Specify years that the input files cover
     # The years are used to generate the pickle file names
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # variables.  Level 1: Remove derived parameters as defined in OMNI
     # documentatio, see below.  Level 2: Remove remaining parameters that 
     # have a correlation coefficient over 0.9
-    level=3
+    level=2
     
     for yr in yrs:
         for num in nums:
