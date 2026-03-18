@@ -267,6 +267,8 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
         scaler.set_output(transform="pandas")
         train_set = scaler.fit_transform(train_set)
         test_set = scaler.transform (test_set)
+    else:
+        scaler = None
         
     return train_set, test_set, scaler
 
