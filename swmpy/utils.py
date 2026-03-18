@@ -233,6 +233,11 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
+    # Verify we are wanting all data
+    if run_info['info'] != 'single': 
+       import sys
+       sys.exit('Error: run_info is not for one station, one year.')
+
     # Merge the SuperMAG and OMNI files into a single dataframe
     df = _merge_files( file_info, run_info ) 
         
@@ -265,7 +270,7 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
         
     return train_set, test_set, scaler
 
-def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
+def get_data_all( file_info, run_info, random_state=42, test_size=0.2 ):
     """Merges the SuperMAG and OMNI data, processes them based on the options, 
     and returns training and test dataframes with B_H Mean as the response variable.
     In this version, we collect all years and all stations together into one
@@ -274,9 +279,8 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
     Inputs:
         file_info = information, such as paths to directories
 
-        flag_info = information on flag settings, etc. for this run.  Includes
-            number, distance, uselogy, etc.  This is distinct from the run_info
-            in get_data.  flag_info does not have the year or the station.
+        run_info = information on flag settings, etc. for this run.  Includes
+            number, distance, uselogy, etc.  
             
         random_state = train_test_split parameter, controls the shuffling applied 
             to the data before applying the split. Pass an int for reproducible 
@@ -293,6 +297,11 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
             scaling
     """
     
+    # Verify we are wanting all data
+    if run_info['info'] != 'all': 
+       import sys
+       sys.exit('Error: run_info is not for all stations, all years.')
+    
     # Loop through all the years and the stations to combine all the data into
     # a single dataframe
     
@@ -301,19 +310,19 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
     
     # We will need to add year and station to flag_info to create 
     # run_info like dict
-    run_info = flag_info
+    run_info_tmp = run_info
     
     for yr in file_info['years']:
             
-        run_info['year'] = yr
+        run_info_tmp['year'] = yr
         stations = stations_list( yr, file_info['SuperMAG Directory'] )
         
         for stat in stations:
             # print(yr, stat)
-            run_info['station'] = stat
+            run_info_tmp['station'] = stat
             
             # Merge the SuperMAG and OMNI files into a single dataframe
-            tmp = _merge_files( file_info, run_info ) 
+            tmp = _merge_files( file_info, run_info_tmp ) 
             
             # Skip files with less than 50 data points
             if len(tmp) >= 50:
@@ -348,7 +357,7 @@ def get_data_all( file_info, flag_info, random_state=42, test_size=0.2 ):
     # data to the same conditions as the data used for the model training.
     #
     # https://datascience.stackexchange.com/questions/63717/how-to-use-standardization-standardscaler-for-train-and-test
-    if flag_info['standardize']:
+    if run_info['standardize']:
         scaler = StandardScaler()
         scaler.set_output(transform="pandas")
         
