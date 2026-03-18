@@ -6,7 +6,7 @@ Created on 9 Dec 2025
 @author: Dean Thomas
 """
 import swmpy as swm
-from file_info_all_SuperMAG import file_info
+from file_info import file_info
 
 if __name__ == "__main__":
 
