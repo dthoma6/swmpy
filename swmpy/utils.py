@@ -121,7 +121,7 @@ def _remove_kp_lower( df, kp ):
 
     return df
  
-def _merge_files( file_info, run_info ):
+def _merge_files( file_info, run_info, drop_large=True ):
     """Combines the SuperMAG and OMNI data for the given year, number, distance, 
     station, and Kp into a single dataframe
     
@@ -130,6 +130,8 @@ def _merge_files( file_info, run_info ):
 
         run_info = information on flag settings, etc. for this run.  Includes
             year, number, distance, station, uselogy, etc.
+            
+        drop_large = drop excessively large B_H values (i.e., > 100,000 nT)
         
     Outputs:
         dataframe of merged data
@@ -176,6 +178,13 @@ def _merge_files( file_info, run_info ):
 
     df = pd.merge(omnidf, smdf, left_index=True, right_index=True)
     df = pd.merge(df,     kpdf, left_index=True, right_index=True)
+    
+    # Based on the analysis in B_ Distribution.ipynb, we drop entries
+    # with excessively large B_H values.  We observed a small number of values
+    # of the order of 1,000,000 nT.  A cut-off of 10,000 nT removed these points.
+    # In our sample of 6,852,208 points, 19 points were above 10,000 nT.
+    if drop_large:
+        df = df.drop(df[df['B_H Mean'] > 10000.].index)
 
     # Drop highly-correlated OMNI variables
     df = _remove_correlated_omni(df)
@@ -191,9 +200,9 @@ def _merge_files( file_info, run_info ):
     if kplower is not None: 
         df = _remove_kp_lower( df, kplower )
     
-    # Add circular response for mlt. 
-    df['cosmlt'] = np.cos( df.mlt*np.pi/180. )
-    df['sinmlt'] = np.sin( df.mlt*np.pi/180. )
+    # Add circular response for mlt. Multiply mlt by 15 -> 24*15=360 
+    df['cosmlt'] = np.cos( 15.*df.mlt*np.pi/180. )
+    df['sinmlt'] = np.sin( 15.*df.mlt*np.pi/180. )
     
     # Add circular response for mcolat if we use get_data_all. 
     # aka run_info['info'] == 'all'. 
@@ -206,7 +215,7 @@ def _merge_files( file_info, run_info ):
     
     return df
 
-def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
+def get_data_one( file_info, run_info, random_state=42, test_size=0.2, drop_large=True ):
     """Merges the SuperMAG and OMNI data, processes them based on the options, 
     and returns training and test dataframes with B_H Mean as the response variable.
     In this version, the dataframe is for a specific station during a specific
@@ -226,6 +235,8 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
             and 1.0 and represent the proportion of the dataset to include in 
             the test split. If int, represents the absolute number of test samples.
             
+        drop_large = drop excessively large B_H values (i.e., > 10,000 nT)
+            
      Outputs:
         train_set and test_set = training and test dataframes
         
@@ -239,7 +250,7 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
        sys.exit('Error: run_info is not for one station, one year.')
 
     # Merge the SuperMAG and OMNI files into a single dataframe
-    df = _merge_files( file_info, run_info ) 
+    df = _merge_files( file_info, run_info, drop_large=drop_large ) 
         
     # Skip files with less than 50 data points
     if len(df) < 50:
@@ -272,7 +283,7 @@ def get_data_one( file_info, run_info, random_state=42, test_size=0.2 ):
         
     return train_set, test_set, scaler
 
-def get_data_all( file_info, run_info, random_state=42, test_size=0.2 ):
+def get_data_all( file_info, run_info, random_state=42, test_size=0.2, drop_large=True ):
     """Merges the SuperMAG and OMNI data, processes them based on the options, 
     and returns training and test dataframes with B_H Mean as the response variable.
     In this version, we collect all years and all stations together into one
@@ -292,7 +303,9 @@ def get_data_all( file_info, run_info, random_state=42, test_size=0.2 ):
             and 1.0 and represent the proportion of the dataset to include in 
             the test split. If int, represents the absolute number of test samples.
             
-     Outputs:
+        drop_large = drop excessively large B_H values (i.e., > 10,000 nT)
+
+        Outputs:
         train_set and test_set = training and test dataframes
         
         scaler = Standard scalar used to scale data, can be used to reverse 
@@ -324,7 +337,7 @@ def get_data_all( file_info, run_info, random_state=42, test_size=0.2 ):
             run_info_tmp['station'] = stat
             
             # Merge the SuperMAG and OMNI files into a single dataframe
-            tmp = _merge_files( file_info, run_info_tmp ) 
+            tmp = _merge_files( file_info, run_info_tmp, drop_large=drop_large ) 
             
             # Skip files with less than 50 data points
             if len(tmp) >= 50:
