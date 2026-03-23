@@ -4,6 +4,38 @@ SuperMAG magnetometer data.  The analysis uses autogluon, sklearn, and other
 statistical and machine learning packages to fit SuperMAG magnetic field data
 to the OMNI solar wind data.
 
+# Core Functionality
+
+The software is structured to handle three types of data:
+- SuperMAG Data: Downloads and processes geomagnetic data from magnetometer stations 
+located across the Earth. It includes functionality to calculate statistics like 
+means over specified time windows.
+- OMNI Data: Parses and processes high-resolution solar wind data (e.g., magnetic 
+field vectors, plasma velocity, and proton density). It includes ballistic 
+propagation to translate solar wind data to specific distances from Earth.
+- Kp Index: Reads and parses the Kp index, a measure of geomagnetic activity, 
+and maps these values to higher-resolution time periods for analysis.
+
+# Data Analysis and Visualization
+
+The package provides several tools for exploring and preparing the data:
+- Correlation Analysis: A scatter matrix tool identifies highly correlated 
+variables to avoid redundancy in statistical models.
+- Distribution Plotting: Generates histograms for key variables from both 
+SuperMAG and OMNI datasets to visualize data distributions and outliers.
+- Utility Functions: Contains common tasks such as merging OMNI and SuperMAG 
+datasets, filtering data by Kp index thresholds, and data cleansing.
+
+# Machine Learning Integration
+
+The package is dedicated to predictive modeling using the AutoGluon library:
+- Regression and Quantile Fits: Trains machine learning models to predict magnetic 
+field variables (specifically B_H Mean) based on solar wind inputs.
+- Model Evaluation: Includes tools for generating permutation importance plots 
+(to see which features most affect the model), residual plots, predicted versus 
+measured comparisons, and calculating prediction efficiency (aka Nash-Sutcliffe 
+Efficiency) to evaluate model performance.
+
 # Install
 
 ```
