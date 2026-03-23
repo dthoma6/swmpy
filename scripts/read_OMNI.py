@@ -51,6 +51,8 @@ if __name__ == "__main__":
     if STATS:
         for yr in yrs:
             for num in nums:
+                if num is None: break; # Handled by RAW below
+                
                 for dist in dists:
                     print( yr, num, dist )
                     swm.omni_stats(file_info, yr, num, dist)

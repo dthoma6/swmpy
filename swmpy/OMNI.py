@@ -314,6 +314,11 @@ def omni_stats(info, year, number, distance):
      Outputs:
         pickle file with statistics
     """
+    # Verify number is not None, that case is handled with omni_raw
+    if number is None: 
+       import sys
+       sys.exit('Error: number can not be None. That case handled by omni_raw')
+
     # path to OMNI data directory, files will be read and saved from there
     omnidirectory = info["OMNI Directory"]
     

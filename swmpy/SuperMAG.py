@@ -300,6 +300,11 @@ def supermag_stats(info, year, number):
         pickle files with statistics
     """
         
+    # Verify number is not None, that case is handled with supermag_raw
+    if number is None: 
+       import sys
+       sys.exit('Error: number can not be None. That case handled by supermag_raw')
+
     # get list of stations
     smdirectory = info["SuperMAG Directory"]
     stations = stations_list(year, smdirectory)
