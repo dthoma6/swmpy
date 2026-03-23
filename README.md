@@ -28,9 +28,9 @@ datasets, filtering data by Kp index thresholds, and data cleansing.
 
 # Machine Learning Integration
 
-The package is dedicated to predictive modeling using the AutoGluon library:
+The package uses the AutoGluon package for predictive modeling:
 - Regression and Quantile Fits: Trains machine learning models to predict magnetic 
-field variables (specifically B_H Mean) based on solar wind inputs.
+field variables (specifically $B_H$ mean values) based on solar wind inputs.
 - Model Evaluation: Includes tools for generating permutation importance plots 
 (to see which features most affect the model), residual plots, predicted versus 
 measured comparisons, and calculating prediction efficiency (aka Nash-Sutcliffe 
