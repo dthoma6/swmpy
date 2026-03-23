@@ -8,6 +8,7 @@ Created on Sun Jan 18 10:13:57 2026
 
 import pandas as pd
 import numpy as np
+from os.path import join
 
 from swmpy.utils import set_plot_rcParams
 
@@ -58,7 +59,7 @@ def scatter_matrix( omnidirectory, year, number, distance, level=0 ):
     """
  
     filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
-    df = pd.read_pickle( omnidirectory + filename )  
+    df = pd.read_pickle( join(omnidirectory, filename) )  
     df.set_index('Datetime')
     
     # OMNI documentation at 
@@ -189,10 +190,10 @@ def scatter_matrix( omnidirectory, year, number, distance, level=0 ):
     # Level 2: Drop other parameters that are highly correlated
 
     if level > 1:
-        # Vx correlated with |V|
+        # By correlated with Bx
         df = df.drop(['By, nT (GSE) Mean'], axis=1)
        
-        # Temperature correlated with |V| and Vx
+        # Temperature correlated with Vx
         df = df.drop(['Temperature, K Mean'], axis=1)
 
     columns = df.columns
