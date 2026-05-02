@@ -24,11 +24,12 @@ from .scatter_matrix import scatter_matrix
 from .distributions import supermag_distribution, omni_distribution
 
 from .utils import stations_list, get_data_one, get_data_all, \
-    set_plot_rcParams, get_prefix, get_suffix, nse
+    set_plot_rcParams, get_prefix, get_suffix, nse, hss
     
 from .autogluon import autogluon_permutation_plot, autogluon_qq_plot, \
     autogluon_residuals_predict_plot, autogluon_predict_measured_plot, \
-    autogluon_quantile_plot, autogluon_regression, autogluon_quantile
+    autogluon_quantile_plot, autogluon_regression, autogluon_quantile, \
+    autogluon_hss_plot
     
 
     

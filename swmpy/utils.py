@@ -160,14 +160,14 @@ def _merge_files( file_info, run_info, drop_large=True ):
         else:
             filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
     omnidf = pd.read_pickle( join(omnidirectory, filename) )  
-    omnidf.set_index('Datetime')
+    omnidf = omnidf.set_index('Datetime')
 
     if number is None:
         filename = station + '-stats-None-' + str(year) + '.pkl'
     else:
         filename = station + '-stats-' + str(number) + 'min-' + str(year) + '.pkl'
     smdf = pd.read_pickle( join(supermagdirectory, filename) )
-    smdf.set_index('Datetime')
+    smdf = smdf.set_index('Datetime')
     
     if number is None:
         filename = 'Kp-stats-' + str(year) + '.pkl'
@@ -190,8 +190,10 @@ def _merge_files( file_info, run_info, drop_large=True ):
     df = _remove_correlated_omni(df)
         
     # If we want log of response variable do it here
+    # Drop 0 values since we can't take the log of them
     if uselogy:
-        df['B_H Mean']     = np.log10( df['B_H Mean'] )
+        df = df.drop(df[df['B_H Mean'] == 0].index)
+        df['B_H Mean'] = np.log10( df['B_H Mean'] )
 
     # if kpupper != None, drop rows with Kp values above threshold
     # if kplower != None, drop rows with Kp values below threshold
@@ -515,6 +517,45 @@ def nse(test, predict):
 
     return eff
 
+def hss(y_true, y_pred, threshold):
+    """
+    Calculates the Heidke Skill Score based exceeding the threshold. 
+    (1 = perfect, 0 = no skill, <0 = worse than random)
+    
+    Inputs:
+        y_true = Actual observations
+        
+        y_pred = Predicted values
+        
+        threshold = threshold defining an 'event'
+               
+    Outputs:
+        score = HSS value 
+    """
+    # Convert continuous data to binary (1 if above threshold, 0 otherwise)
+    obs_bin = (y_true >= threshold).astype(int)
+    pre_bin = (y_pred >= threshold).astype(int)
+    
+    # Calculate confusion matrix components
+    tp = np.sum((obs_bin == 1) & (pre_bin == 1)) # True Positives
+    tn = np.sum((obs_bin == 0) & (pre_bin == 0)) # True Negatives
+    fp = np.sum((obs_bin == 0) & (pre_bin == 1)) # False Positives
+    fn = np.sum((obs_bin == 1) & (pre_bin == 0)) # False Negatives
+    
+    total = len(y_true)
+    
+    # Expected correct by chance
+    expected = (((tp + fp) * (tp + fn)) + ((tn + fn) * (tn + fp))) / total
+    
+    numerator = (tp + tn) - expected
+    denominator = total - expected
+    
+    if denominator != 0:
+        score = numerator / denominator 
+    else:
+        score = 0.0
+        
+    return score
 
 if __name__ == "__main__":
     

@@ -15,7 +15,7 @@ import statsmodels.api as sm
 from pickle import dump, load
 
 from swmpy.utils import get_data_one, get_data_all, get_prefix, get_suffix, \
-    set_plot_rcParams, nse
+    set_plot_rcParams, nse, hss
 
 def _dir_path( file_info, run_info, quantile=False, full=False ):
     """Generate path to directory where autogluon models and plots will be stored.
@@ -475,7 +475,7 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
                                    model=model)
         
         # Plot data
-        axes[i].scatter(test_set.index, y_pred[0.5], c='r', s=3, label='Predicted Median')           
+        # axes[i].scatter(test_set.index, y_pred[0.5], c='r', s=3, label='Predicted Median')           
         axes[i].fill_between( test_set.index, y_pred[alpha], y_pred[1-alpha], 
                              alpha=0.4, label=str(pct) + "% Prediction Interval")
         axes[i].scatter(test_set.index, y_test, c='g', s=3, label='Test Observations')
@@ -509,6 +509,133 @@ def autogluon_quantile_plot( file_info, run_info, alpha=0.05, zoom=None, full=Fa
     
     plt.savefig( join( path, 'Quantile ' + suffix + '.png') )
     # plt.close( )
+    return
+
+def autogluon_hss_plot( file_info, run_info, alpha=0.05, zoom=None, full=False,
+                       threshold = 400):
+    """Takes a previously developed autogluon model for combined SuperMAG and 
+    OMNI data and generates a plot of Heike Skill Scores for each 
+    autogluon model. (autogluon fits multiple machine learning models to the data.)
+    
+    Inputs:
+        file_info = information, such as paths to directories, for run
+        
+        run_info = information on flag settings, etc. for this run.  Includes
+            year, number, distance, station, uselogy, etc.
+                
+        alpha = specifes quantiles, e.g., if alpha=0.05, the 0.05 and 0.95 
+            quantiles are modeled, plus the 0.5 quantile (aka median) that is 
+            always modeled.
+            
+        zoom = if None, do nothing.  If list, e.g., [650,850], set x-axis limits
+            to [650,850]
+        
+        full = whether to combine all data (all years and all stations) for the
+            fit or just single year and station
+            
+        threshold = the delta B threshold (nT) for determining HSS scores
+                
+    Outputs:
+        Quantile plot for each autogluon model with prediction interval
+    """
+   
+    # Directory where we will retrieve data and store plots
+    path = _dir_path( file_info, run_info, quantile=True, full=full )
+    
+    # Load test data
+    test_set = load( open(join( path, 'test_data.pkl'), 'rb') )
+ 
+    #  # For the plot below, we sort the test_set from smallest to largest
+    # test_set = test_set.sort_values(by=["B_H Mean"])
+    # test_set = test_set.reset_index(drop=True)
+
+    # Select dependent variable
+    dependent = 'B_H Mean'
+
+    # Load autogluon model
+    predictor = TabularPredictor.load(path)
+    
+    # We'll make a grid of subplots with one plot per model
+    # s1 and s2 give us the size of the grid
+    models = predictor.model_names()
+    s1 = int( np.sqrt( len(models) ) )
+    s2 = int( np.ceil( len(models)/s1 ) )
+
+    # set_plot_rcParams(fontsize=7)
+    # fig, ax = plt.subplots(s1,s2,figsize=(3*s2,3*s1+1) ) 
+    # axes = ax.reshape(-1)
+    
+    # Use test data in autogluon model  
+    test_data  = TabularDataset(test_set)
+    y_true     = test_data[dependent].values
+    
+    if run_info['uselogy']:
+        thres = np.log10(threshold)
+    else:
+        thres = threshold
+
+    print('Median')
+         
+    for i, model in enumerate( models ):
+        print( 'Quantile model: ', model )
+        y_pred = predictor.predict(test_data.drop(columns=[dependent]), 
+                                   model=model)
+
+        # TODO which quantile should we use???
+        # Currently, we use median prediction (0.5 quantile)
+        y_pred_median = y_pred[0.5].values
+        # y_pred_median = y_pred[1-alpha].values
+        hss_val = hss(y_true, y_pred_median, thres)
+        
+        if run_info['uselogy']:
+            print(f"Heidke Skill Score (Threshold log_{10}{threshold} nT): {hss_val:.4f}")
+        else:
+            print(f"Heidke Skill Score (Threshold {threshold} nT): {hss_val:.4f}")
+
+    
+    # # Size of prediction interval
+    # pct = 100*(1-2*alpha)
+    
+    # for i, model in enumerate( models ):
+    #     print( 'Quantile plot: ', model )
+    #     y_pred = predictor.predict(test_data.drop(columns=[dependent]), 
+    #                                model=model)
+        
+    #     # Plot data
+    #     # axes[i].scatter(test_set.index, y_pred[0.5], c='r', s=3, label='Predicted Median')           
+    #     axes[i].fill_between( test_set.index, y_pred[alpha], y_pred[1-alpha], 
+    #                          alpha=0.4, label=str(pct) + "% Prediction Interval")
+    #     axes[i].scatter(test_set.index, y_test, c='g', s=3, label='Test Observations')
+    #     if zoom is not None:
+    #         axes[i].set_xlim(zoom)
+
+    #     # Change labels based on options
+    #     if run_info['uselogy']:
+    #         axes[i].set_ylabel(r'$log_{10}(\overline {B_H})$ Predict')
+    #         axes[i].set_xlabel(r'Index')
+    #     else:
+    #         axes[i].set_ylabel(r'$\overline {B_H}$ Predict')
+    #         axes[i].set_xlabel(r'Index')
+            
+    #     axes[i].set_title( model )
+        
+    #     # Use the same x and y limits
+    #     axes[i].legend()
+
+    # # Make unused subplots invisible
+    # for j in range( len(axes) - len(models) ):
+    #     axes[j+len(models)].set_visible(False)   
+        
+    # # Change titles and filenames used below based on options
+    # # Prefix and suffix added to titles and filenames
+    # prefix = get_prefix( run_info )
+    # suffix = get_suffix( run_info )
+
+    # fig.suptitle( _get_title( 'Quantile ', prefix, run_info, full ) )
+    # fig.tight_layout() 
+    
+    # plt.savefig( join( path, 'Quantile ' + suffix + '.png') )
+    # # plt.close( )
     return
 
 def autogluon_regression( file_info, run_info, full=False ):

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     PLOTS = True
     
     # Whether to generate regression fit or quantile fit
-    REGRESSION = True
+    REGRESSION = False
     
     #########################################################################
     # Generic information, such as paths to directories, for multiple runs
@@ -76,6 +76,8 @@ if __name__ == "__main__":
                # Update run_info
                run_info = get_run_info_all( num, dist )
 
+               print( ' Number = ', num, ' Distance = ', dist)
+               
                # Do modeling
                if REGRESSION:
                    swm.autogluon_regression(file_info, run_info, full=True)
@@ -95,6 +97,8 @@ if __name__ == "__main__":
                 # Update run_info
                 run_info = get_run_info_all( num, dist )
 
+                print( ' Number = ', num, ' Distance = ', dist)
+               
                 if REGRESSION:
                     # Plot predicted vs measured results from previously 
                     # fit autogluon model
