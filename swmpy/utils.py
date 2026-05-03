@@ -160,14 +160,14 @@ def _merge_files( file_info, run_info, drop_large=True ):
         else:
             filename = 'OMNI-stats-' + str(distance) + 'Re-' + str(number) + 'min-' + str(year) + '.pkl'
     omnidf = pd.read_pickle( join(omnidirectory, filename) )  
-    omnidf = omnidf.set_index('Datetime')
+    omnidf.set_index('Datetime')
 
     if number is None:
         filename = station + '-stats-None-' + str(year) + '.pkl'
     else:
         filename = station + '-stats-' + str(number) + 'min-' + str(year) + '.pkl'
     smdf = pd.read_pickle( join(supermagdirectory, filename) )
-    smdf = smdf.set_index('Datetime')
+    smdf.set_index('Datetime')
     
     if number is None:
         filename = 'Kp-stats-' + str(year) + '.pkl'
